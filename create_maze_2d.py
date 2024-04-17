@@ -11,7 +11,7 @@ class Maze:
     EXTENDING = 2
 
 
-class Directions(Enum):
+class Directions2D(Enum):
 
     BOTTOM = (0, 1)
     UPPER = (0, -1)
@@ -50,7 +50,7 @@ def extend_wall(grid, org_x, org_y):
                 grid[grid == Maze.EXTENDING] = Maze.WALL
                 return
 
-        if not (directions := [d for d in Directions if is_extendable(grid, d, x, y)]):
+        if not (directions := [d for d in Directions2D if is_extendable(grid, d, x, y)]):
             grid[grid == Maze.EXTENDING] = Maze.AISLE
             x, y = org_x, org_y
             continue
@@ -74,13 +74,14 @@ def create_grid(rows, cols):
 def create_maze(rows, cols):
     grid = create_grid(rows, cols)
     starts = starts_pts(rows, cols)
-    print(starts)
+    # print(starts)
 
     for x, y in starts:
         if grid[y, x] != Maze.WALL:
             extend_wall(grid, x, y)
 
     print(grid)
+    return grid
 
 
 if __name__ == '__main__':
