@@ -11,7 +11,6 @@ from create_maze_2d import create_maze, Maze
 from create_geomnode import Cube
 
 
-
 class Size(NamedTuple):
 
     rows: int
@@ -20,14 +19,11 @@ class Size(NamedTuple):
 
 class Wall(NodePath):
 
-    def __init__(self, model, row, col, pos):
-        super().__init__(BulletRigidBodyNode(f'wall_{row}_{col}'))
-        self.row = row
-        self.col = col
-
+    def __init__(self, model, suffix, pos):
+        super().__init__(BulletRigidBodyNode(f'wall_{suffix}'))
         self.set_pos(pos)
         self.set_scale(Vec3(2, 2, 4))
-        self.set_collide_mask(BitMask32.bit(1))
+        self.set_collide_mask(BitMask32.bit(1) | BitMask32.bit(2))
 
         self.model = model.copy_to(self)
         end, tip = self.model.get_tight_bounds()
@@ -38,57 +34,26 @@ class Wall(NodePath):
 class MazeBuilder3D:
 
     def __init__(self, world):
-        # self.size = Size(21, 21)  # rows, cols
-        # self.grid = create_maze(self.size.rows, self.size.cols)
-
-        # self.gen = self.get_wall()
         self.block = Cube()
         self.world = world
         self.walls = NodePath('walls')
         self.walls.reparent_to(base.render)
 
-        # self.create_grid()
-
     def build(self, rows, cols):
+        if rows % 2 == 0 or cols % 2 == 0:
+            raise ValueError('rows and cols must be odd numbers.')
+
         self.size = Size(rows, cols)
         self.grid = create_maze(*self.size)
+
+        self.grid[0, 1] = Maze.AISLE
+        self.grid[self.size.rows - 1, self.size.cols - 2] = Maze.AISLE
 
         for r in range(self.size.rows):
             for c in range(self.size.cols):
                 if self.grid[r, c] == Maze.WALL:
-                    pos = Point3((c - self.size.cols // 2) * 2, (-r + self.size.rows // 2) * 2, 1)
-                    wall = Wall(self.block, r, c, pos)
+                    pos = Point3((c - self.size.cols // 2) * 2, (-r + self.size.rows // 2) * 2, 2)
+                    wall = Wall(self.block, f'{r}_{c}', pos)
                     wall.set_color(LColor(1, 0, 0, 1))
                     wall.reparent_to(self.walls)
                     self.world.attach(wall.node())
-
-    
- 
-    # def update(self, dt):
-    #     try:
-    #         # for elem in self.queue:
-
-    #         #     wall = self.grid[elem]
-    #         #     wall.go_up(dt)
-    #         #         # self.queue.popleft()
-
-    #         # (r, c) = self.queue.popleft()
-    #         # wall = self.grid[(r, c)]
-    #         # if not wall.go_up(dt):
-    #         #     self.queue.append((r, c))
-    #         x, y = next(self.gen)
-    #         # pos = Point3(x * 2 - 10, y * -2 + 10, 1)  # できる
-    #         pos = Point3((x - self.size.cols // 2) * 2, (-y + self.size.rows // 2) * 2, 1)
-    #         wall = Wall(self.block, y, x, pos)
-    #         # wall = Wall('wall', self.block, pos, Vec3(0, 0, 0), Vec3(2), BitMask32(1))
-    #         wall.set_color(LColor(1, 0, 0, 1))
-    #         wall.reparent_to(self.walls)
-    #         self.world.attach(wall.node())
-    #     except StopIteration:
-    #     # except IndexError:
-    #         wall = Wall(self.block, 0, 0, Point3(0, 0, 2))
-    #         # wall = Wall('wall', self.block, Point3(0, 0, 2), Vec3(0, 0, 0), Vec3(2), BitMask32(1))
-    #         wall.set_color(LColor(1, 1, 0, 1))
-    #         wall.reparent_to(self.walls)
-    #         self.world.attach(wall.node())
-    #         pass

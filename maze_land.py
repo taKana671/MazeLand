@@ -1,13 +1,14 @@
 import sys
-from panda3d.bullet import BulletWorld
-from panda3d.bullet import BulletDebugNode
-from panda3d.core import Vec3
+from panda3d.bullet import BulletWorld, BulletSphereShape
+from panda3d.bullet import BulletDebugNode, BulletRigidBodyNode
+from panda3d.core import Vec3, NodePath, BitMask32, Point3
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.ShowBaseGlobal import globalClock
 
 from create_maze_3d import MazeBuilder3D
 from lights import BasicAmbientLight, BasicDayLight
 from scene import Ground
+from sphere import Sphere
 
 
 class Maze3D(ShowBase):
@@ -24,9 +25,20 @@ class Maze3D(ShowBase):
         self.creator = MazeBuilder3D(self.world)
         self.creator.build(21, 21)
 
-        # self.camera.set_pos(30, -30, 50)
-        self.camera.set_pos(0, 0, 80)
-        self.camera.look_at(0, 0, 0)
+        self.spehre = Sphere(self.world, Point3(18, -20, 2))
+        # self.spehre.reparent_to(self.render)
+        # self.world.attach(self.spehre.node())
+        self.floater = NodePath('floater')
+        self.floater.set_z(5)
+        self.floater.reparent_to(self.spehre)
+
+        self.camera.reparent_to(self.spehre)
+        self.camera.set_pos(self.spehre.navigate())
+        self.camera.look_at(self.floater)
+        self.camLens.set_fov(90)
+
+        # self.camera.set_pos(0, 0, 80)
+        # self.camera.look_at(0, 0, 0)
 
         self.ambient_light = BasicAmbientLight()
         self.ambient_light.reparent_to(self.render)
@@ -48,7 +60,7 @@ class Maze3D(ShowBase):
 
     def update(self, task):
         dt = globalClock.get_dt()
-
+        self.spehre.update(dt)
         self.world.do_physics(dt)
         return task.cont
 
