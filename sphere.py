@@ -3,11 +3,10 @@ from enum import Enum, auto
 
 from panda3d.bullet import BulletRigidBodyNode, BulletSphereShape
 from panda3d.core import Vec3, NodePath, BitMask32, Point3, LColor, Point2
-from direct.interval.IntervalGlobal import Sequence, Func 
+from direct.interval.IntervalGlobal import Sequence, Func
 
-from create_geomnode import SphericalShape, Cube
+from create_geomnode import SphericalShape
 from utils import create_line_node
-from create_maze_3d import Direction2D, Wall
 
 
 class Status(Enum):
@@ -17,38 +16,62 @@ class Status(Enum):
     turn = auto()
 
 
-class Sphere(NodePath):
+class Drone(NodePath):
 
-    def __init__(self, world, grid):
-        super().__init__(BulletRigidBodyNode('sphere'))
-        self.world = world
-        self.grid = grid
-
+    def __init__(self):
+        super().__init__(BulletRigidBodyNode('drone'))
         self.set_scale(1)
-
-        self.space = self.grid.entrance
-        self.total_distance = 0
-        self.dead_end = False
-
-        p2 = self.grid.space_to_world(*self.space)
-        self.set_pos(Point3(p2, 3))
         self.set_collide_mask(BitMask32.bit(1))
 
         model = SphericalShape(radius=0.5)
         self.model = self.attach_new_node(model.node())
+
         end, tip = self.model.get_tight_bounds()
         size = tip - end
         self.node().add_shape(BulletSphereShape(size.z / 2))
         self.node().set_kinematic(True)
-
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
 
-        self.reparent_to(base.render)
-        self.world.attach(self.node())
-
         self.direction_nd = NodePath('direction')
         self.direction_nd.reparent_to(self)
+
+
+class DroneController(NodePath):
+
+    def __init__(self, world, maze_builder):
+        super().__init__(BulletRigidBodyNode('sphere'))
+        self.world = world
+        self.maze_builder = maze_builder
+
+        # self.set_scale(1)
+
+        self.total_distance = 0
+        self.dead_end = False
+
+        self.drone = Drone()
+
+        xy = self.maze_builder.get_entrance()
+        z = self.maze_builder.wall_size.z - 0.5
+        self.drone.set_pos(Point3(xy, z))
+        # self.set_collide_mask(BitMask32.bit(1))
+
+        # model = SphericalShape(radius=0.5)
+        # self.model = self.attach_new_node(model.node())
+        # end, tip = self.model.get_tight_bounds()
+        # size = tip - end
+        # self.node().add_shape(BulletSphereShape(size.z / 2))
+        # self.node().set_kinematic(True)
+
+        # self.node().set_ccd_motion_threshold(1e-7)
+        # self.node().set_ccd_swept_sphere_radius(0.5)
+
+        self.drone.reparent_to(base.render)
+        self.world.attach(self.drone.node())
+
+        # self.direction_nd = NodePath('direction')
+        # self.direction_nd.reparent_to(self)
+
 
         self.front = NodePath('front')
         self.front.set_pos(Vec3(0, 1.5, 0))
@@ -86,9 +109,15 @@ class Sphere(NodePath):
 
         for val, sensor in [[0, self.front], [-1, self.left], [1, self.right]]:
             pos_to = sensor.get_pos(base.render)
+
+            # if (result := self.world.ray_test_closest(
+            #         pos_from, pos_to, mask=BitMask32.bit(2))).has_hit():
+                # print(result.get_node().get_name())
+
             if not self.world.ray_test_closest(
                     pos_from, pos_to, mask=BitMask32.bit(2)).has_hit():
                 yield val
+        # print('---------------------------------')
 
         # for val, sensor in [[0, self.front], [-1, self.left], [1, self.right]]:
         #     pos_to = sensor.get_pos(base.render)
@@ -106,9 +135,6 @@ class Sphere(NodePath):
                     pos_from, pos_to, mask=BitMask32.bit(2))).has_hit():
                 yield result.get_node().get_name()
 
-
-
-
     def change_state(self):
         self.state = Status.move
 
@@ -119,7 +145,7 @@ class Sphere(NodePath):
         match self.state:
 
             case Status.stop:
-                print(self.get_pos())
+                # print(self.get_pos())
                 if directions := [d for d in self.find_aisles()]:
                     # import pdb; pdb.set_trace()
                     # print(directions)
@@ -133,15 +159,11 @@ class Sphere(NodePath):
                         if len(directions) == 1:
                             self.before_pos = self.get_pos()
                         else:
-                            block = Cube()
-                            wall = Wall(block, 'closed', self.before_pos)
-                            wall.set_color(LColor(1, 0, 0, 1))
-                            wall.reparent_to(base.render)
-                            wall.hide()
-                            self.world.attach(wall.node())
+                            scale = Vec3(self.maze_builder.wall_size.xy, 1)
+                            mask = BitMask32.bit(1) | BitMask32.bit(2)
+                            self.maze_builder.make_wall('closed', self.before_pos, scale, mask, True)
                             self.dead_end = False
 
-                   
                     if self.direction == 0:
                         self.state = Status.move
                     if self.direction == -1:
@@ -158,6 +180,7 @@ class Sphere(NodePath):
                         ).start()
                 else:
                     self.state = Status.turn
+                    # self.before_pos = self.get_pos()
                     self.dead_end = True
                     Sequence(
                         self.direction_nd.hprInterval(0.5, (self.direction_nd.get_h() + 180, 0, 0)),
@@ -168,7 +191,7 @@ class Sphere(NodePath):
 
             case Status.move:
                 forward_vector = self.direction_nd.get_quat(base.render).get_forward()
-                distance = 1 * 10 * dt
+                distance = 1 * 2 * dt
 
                 if self.total_distance + distance > 2:
                     distance = 2 - self.total_distance

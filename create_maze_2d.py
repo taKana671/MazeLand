@@ -1,14 +1,7 @@
-import numpy as np
 import random
-
 from enum import Enum
 
-
-class Maze:
-
-    WALL = 1
-    AISLE = 0
-    EXTENDING = 2
+import numpy as np
 
 
 class Direction2D(Enum):
@@ -24,65 +17,67 @@ class Direction2D(Enum):
         self.row = row
 
 
-def starts_pts(rows, cols):
-    li = [(x, y) for y in range(1, rows - 1) for x in range(1, cols - 1) if y % 2 == 0 and x % 2 == 0]
-    random.shuffle(li)
-    return li
+class WallExtendingAlgorithm:
 
+    WALL = 1
+    AISLE = 0
+    EXTENDING = 2
 
-def is_extendable(grid, direction, x, y):
-    ahead_2x = x + direction.col * 2
-    ahead_2y = y + direction.row * 2
+    def __init__(self, rows, cols):
+        self.rows = rows
+        self.cols = cols
 
-    if grid[ahead_2y, ahead_2x] != Maze.EXTENDING:
-        return True
+    def create_maze(self):
+        grid = np.zeros((self.rows, self.cols))
+        grid[[0, -1]] = self.WALL
+        grid[:, [0, -1]] = self.WALL
 
+        starts = [pt for pt in self.starts_pts()]
+        random.shuffle(starts)
 
-def extend_wall(grid, org_x, org_y):
-    x, y = org_x, org_y
+        for x, y in starts:
+            if grid[y, x] != self.WALL:
+                self.extend_wall(grid, x, y)
 
-    while True:
+        print(grid)
+        return grid
 
-        match grid[y, x]:
-            case Maze.AISLE:
-                grid[y, x] = Maze.EXTENDING
-            case Maze.WALL:
-                grid[grid == Maze.EXTENDING] = Maze.WALL
-                return
+    def starts_pts(self):
+        for y in range(1, self.rows - 1):
+            for x in range(1, self.cols - 1):
+                if y % 2 == 0 and x % 2 == 0:
+                    yield (x, y)
 
-        if not (directions := [d for d in Direction2D if is_extendable(grid, d, x, y)]):
-            grid[grid == Maze.EXTENDING] = Maze.AISLE
-            x, y = org_x, org_y
-            continue
+    def extendable_directions(self, grid, x, y):
+        for direction in Direction2D:
+            ahead_2x = x + direction.col * 2
+            ahead_2y = y + direction.row * 2
 
-        direction = random.choice(directions)
-        grid[y + direction.row, x + direction.col] = Maze.EXTENDING
-        x += direction.col * 2
-        y += direction.row * 2
+            if grid[ahead_2y, ahead_2x] != self.EXTENDING:
+                yield direction
 
+    def extend_wall(self, grid, org_x, org_y):
+        x, y = org_x, org_y
 
-def create_grid(rows, cols):
-    grid = np.zeros((rows, cols))
-    grid[0, :] = Maze.WALL
-    grid[-1, :] = Maze.WALL
-    grid[:, 0] = Maze.WALL
-    grid[:, -1] = Maze.WALL
+        while True:
 
-    return grid
+            match grid[y, x]:
+                case self.AISLE:
+                    grid[y, x] = self.EXTENDING
+                case self.WALL:
+                    grid[grid == self.EXTENDING] = self.WALL
+                    return
 
+            if not (directions := [d for d in self.extendable_directions(grid, x, y)]):
+                grid[grid == self.EXTENDING] = self.AISLE
+                x, y = org_x, org_y
+                continue
 
-def create_maze(rows, cols):
-    grid = create_grid(rows, cols)
-    starts = starts_pts(rows, cols)
-    # print(starts)
-
-    for x, y in starts:
-        if grid[y, x] != Maze.WALL:
-            extend_wall(grid, x, y)
-
-    print(grid)
-    return grid
+            d = random.choice(directions)
+            grid[y + d.row, x + d.col] = self.EXTENDING
+            x += d.col * 2
+            y += d.row * 2
 
 
 if __name__ == '__main__':
-    create_maze(9, 11) 
+    WallExtendingAlgorithm.create_maze(9, 11)

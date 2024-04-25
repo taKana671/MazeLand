@@ -5,7 +5,7 @@ from panda3d.core import Vec3, NodePath, BitMask32, Point3
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.ShowBaseGlobal import globalClock
 
-from create_maze_3d import MazeBuilder3D, Grid
+from create_maze_3d import MazeBuilder
 from lights import BasicAmbientLight, BasicDayLight
 from scene import Ground
 from sphere import Sphere
@@ -22,12 +22,10 @@ class Maze3D(ShowBase):
         self.debug = self.render.attach_new_node(BulletDebugNode('debug'))
         self.world.set_debug_node(self.debug.node())
 
-        self.grid = Grid(21, 21)
-        self.creator = MazeBuilder3D(self.world, self.grid)
-        self.creator.build()
+        self.maze_builder = MazeBuilder(self.world, 21, 21)
+        self.maze_builder.build()
 
-        # self.spehre = Sphere(self.world, Point3(18, -20, 2))
-        self.spehre = Sphere(self.world, self.grid)
+        self.spehre = Sphere(self.world, self.maze_builder)
         # self.spehre.reparent_to(self.render)
         # self.world.attach(self.spehre.node())
         self.floater = NodePath('floater')
