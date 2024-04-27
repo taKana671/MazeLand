@@ -8,7 +8,7 @@ from direct.showbase.ShowBaseGlobal import globalClock
 from create_maze_3d import MazeBuilder
 from lights import BasicAmbientLight, BasicDayLight
 from scene import Ground
-from sphere import Sphere
+from drone import DroneController
 
 
 class Maze3D(ShowBase):
@@ -25,15 +25,14 @@ class Maze3D(ShowBase):
         self.maze_builder = MazeBuilder(self.world, 21, 21)
         self.maze_builder.build()
 
-        self.spehre = Sphere(self.world, self.maze_builder)
-        # self.spehre.reparent_to(self.render)
-        # self.world.attach(self.spehre.node())
+        self.drone_controller = DroneController(self.world, self.maze_builder)
+
         self.floater = NodePath('floater')
         self.floater.set_z(5)
-        self.floater.reparent_to(self.spehre)
+        self.floater.reparent_to(self.drone_controller.drone.frame)
 
-        self.camera.reparent_to(self.spehre)
-        self.camera.set_pos(self.spehre.navigate())
+        self.camera.reparent_to(self.drone_controller.drone.frame)
+        self.camera.set_pos(self.drone_controller.get_relative_pos(Point3(0, -2, 10)))
         self.camera.look_at(self.floater)
         self.camLens.set_fov(90)
 
@@ -60,7 +59,7 @@ class Maze3D(ShowBase):
 
     def update(self, task):
         dt = globalClock.get_dt()
-        self.spehre.update(dt)
+        self.drone_controller.update(dt)
         self.world.do_physics(dt)
         return task.cont
 
