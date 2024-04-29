@@ -1,21 +1,16 @@
-import random
-import types
-from enum import Enum
 from typing import NamedTuple
-from collections import deque
-import numpy as np
 from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape
-from panda3d.core import NodePath, PandaNode
-from panda3d.core import Vec3, Point3, LVecBase2i, LColor, BitMask32, LPoint2i, Point2
+from panda3d.core import NodePath, TextureStage
+from panda3d.core import Vec3, Point3, BitMask32, Point2
 
 from create_maze_2d import WallExtendingAlgorithm
 from create_geomnode import Cube
 
 
-class Wall(NodePath):
+class Block(NodePath):
 
     def __init__(self, name, pos, scale, mask):
-        super().__init__(BulletRigidBodyNode(f'wall_{name}'))
+        super().__init__(BulletRigidBodyNode(name))
         cube = Cube()
         self.model = self.attach_new_node(cube.node())
 
@@ -38,34 +33,45 @@ class MazeBuilder:
 
     def __init__(self, world, rows, cols, side=2):
         self.world = world
-        self.wall_size = Vec3(side, side, side * 2)
+        self.wall_wd = Point2(side)
         self.rows = rows if rows % 2 != 0 else rows - 1
         self.cols = cols if cols % 2 != 0 else cols - 1
 
         self.entrance = Space(self.rows - 1, self.cols - 2)
         self.exit = Space(0, 1)
 
-        self.walls = NodePath('walls')
-        self.walls.reparent_to(base.render)
+        self.np_walls = NodePath('walls')
+        self.np_walls.reparent_to(base.render)
+        # self.walls.set_pos(0, 0, -3)  # terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
 
     def space_to_cartesian(self, row, col):
-        x = (col - self.cols // 2) * self.wall_size.x
-        y = (-row + self.rows // 2) * self.wall_size.y
+        x = (col - self.cols // 2) * self.wall_wd.x
+        y = (-row + self.rows // 2) * self.wall_wd.y
         return Point2(x, y)
 
     def build(self):
+        tex_brick = base.loader.load_texture('textures/brick.jpg')
+        tex_stone = base.loader.load_texture('textures/concrete2.jpg')
         # config = types.SimpleNamespace(wall=1, aisle=0, extending=2)
+
+        np_brick = NodePath('brick')
+        np_brick.reparent_to(self.np_walls)
+        np_stone = NodePath('stone')
+        np_stone.reparent_to(self.np_walls)
+
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
-        wall_z = self.wall_size.z / 2
+        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 2)
+        stone_size = Vec3(self.wall_wd, 0.5)
+        brick_z = brick_size.z / 2
+        stone_z = brick_size.z + stone_size.z / 2
 
         for r in range(self.rows):
             for c in range(self.cols):
                 if grid[r, c] == WallExtendingAlgorithm.WALL:
                     xy = self.space_to_cartesian(r, c)
-                    pos = Point3(xy, wall_z)
 
                     match (r, c):
                         case self.entrance:
@@ -78,13 +84,24 @@ class MazeBuilder:
                             mask = BitMask32.bit(1) | BitMask32.bit(2)
                             hide = False
 
-                    self.make_wall(f'{r}_{c}', pos, self.wall_size, mask, hide)
+                    self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), brick_size, mask, hide, np_brick)
+                    self.make_block(f'top_{r}_{c}', Point3(xy, stone_z), stone_size, mask, hide, np_stone)
 
-    def make_wall(self, name, pos, scale, mask, hide=False):
-        wall = Wall(name, pos, scale, mask)
-        wall.set_color(LColor(1, 0, 0, 1))
-        wall.reparent_to(self.walls)
-        self.world.attach(wall.node())
+        su = (brick_size.x * 2 + brick_size.y * 2) / 4
+        sv = brick_size.z / 4
+        np_brick.set_tex_scale(TextureStage.get_default(), su, sv)
+
+        np_brick.set_texture(tex_brick)
+        np_stone.set_texture(tex_stone)
+        self.np_walls.flatten_strong()
+
+    def make_block(self, name, pos, scale, mask, hide=False, parent=None):
+        if parent is None:
+            parent = self.np_walls
+
+        block = Block(name, pos, scale, mask)
+        block.reparent_to(parent)
+        self.world.attach(block.node())
 
         if hide:
-            wall.hide()
+            block.hide()
