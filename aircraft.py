@@ -186,7 +186,7 @@ class AircraftController:
         self.aircraft = Aircraft(self.world)
         xy = self.maze_builder.get_entrance()
         z = self.maze_builder.wall_wd.x * 2 - 0.5
-        self.aircraft.set_pos(Point3(xy, z))
+        self.aircraft.set_pos(Point3(xy, z - 10))
 
         self.state = Status.STOP
 
