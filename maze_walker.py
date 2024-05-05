@@ -1,10 +1,13 @@
 from enum import Enum, auto
+from collections import deque
 
 from direct.actor.Actor import Actor
 from panda3d.bullet import BulletSphereShape, BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
 from panda3d.core import Vec3, Point3, BitMask32
+
+from create_maze_3d import Space
 
 
 class Motions:
@@ -127,6 +130,15 @@ class MazeWalker:
 
         return None
 
+    def cast_ray_downward_brick(self, pos_from):
+        pos_to = pos_from + Vec3(0, 0, -30)
+
+        if (result := self.world.ray_test_closest(
+                pos_from, pos_to, mask=BitMask32.bit(5))).has_hit():
+            return result
+
+        return None
+
     def detect_collision(self):
         result = self.world.contact_test(self.actor.node(), use_filter=True)
         offset = Vec3()
@@ -165,6 +177,9 @@ class MazeWalkerController:
         print('walker start pos', Point3(xy, -7))
         self.walker.set_pos(Point3(xy, -7))
 
+        self.current_space = None
+        self.queue = deque()
+
     def update(self, motions, dt):
         # print(self.walker.get_pos())
         move_direction = 0
@@ -191,6 +206,10 @@ class MazeWalkerController:
         self.walker.move(move_direction, dt)
         self.walker.play_anim(motion)
 
+        pos = self.walker.root_np.get_pos()
+        self.current_space = Space(int(pos.y), int(pos.x))
+        self.move_direction = move_direction
+
     def is_walker_in_maze(self):
         pos = self.walker.get_pos()
         return self.maze_builder.is_in_maze(pos)
@@ -200,4 +219,55 @@ class MazeWalkerController:
 
     def get_walker_pos(self):
         return self.walker.root_np.get_pos()
+
+    def check_current_pos(self):
+        if hit := self.walker.cast_ray_downward_brick(self.get_walker_pos()):
+            # print(hit.get_node().get_name(), hit.get_hit_pos())
+            name = hit.get_node().get_name()
+            _, r, c = name.split('_')
+            space = Space(int(r), int(c))
+
+            if len(self.queue) == 0:
+                self.queue.append(space)
+                return None
+
+
+            if self.queue[-1] != space:
+                if len(self.queue) >= 1:
+                    # 後戻り
+                    if self.queue[-1] == space:
+                        self.queue.pop()
+
+                        if len(self.queue) >= 2:
+                            return self.queue[-2]
+                    else:
+                        self.queue.append(space)
+                        if len(self.queue) >= 2:
+                            return self.queue[-2]
+                # else:
+                #     self.queue.append(space)
+
+                self.queue.append(space)
+
+            
+            # if self.queue[-1] != space:
+            #     if len(self.queue) >= 2:
+            #         # 後戻り
+            #         if self.queue[-2] == space:
+            #             self.queue.pop()
+
+            #             if len(self.queue) >= 3:
+            #                 return self.queue[-3]
+            #         else:
+            #             self.queue.append(space)
+            #             if len(self.queue) >= 3:
+            #                 return self.queue[-3]
+            #     # else:
+            #     #     self.queue.append(space)
+
+            #     self.queue.append(space)
+          
+        return None
+                
+
 

@@ -1,5 +1,5 @@
 from typing import NamedTuple
-from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape
+from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape, BulletConvexHullShape
 from panda3d.core import NodePath, TextureStage
 from panda3d.core import Vec3, Point3, BitMask32, Point2
 
@@ -39,13 +39,20 @@ class MazeBuilder:
 
         self.entrance = Space(self.rows - 1, self.cols - 2)
         self.exit = Space(0, 1)
+        self.top_left = self.space_to_cartesian(0, 0)
+        self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
 
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(base.render)
-        # self.walls.set_pos(0, 0, -3)  # terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
+        self.np_walls.set_pos(0, 0, -10)  # -10 terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
+        # self.np_walls.set_pos(0, 0, -10)
+
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
+
+    def get_exit(self):
+        return self.space_to_cartesian(*self.exit)
 
     def space_to_cartesian(self, row, col):
         x = (col - self.cols // 2) * self.wall_wd.x
@@ -63,15 +70,23 @@ class MazeBuilder:
         np_stone.reparent_to(self.np_walls)
 
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
-        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 2)
+        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 3)
         stone_size = Vec3(self.wall_wd, 0.5)
         brick_z = brick_size.z / 2
         stone_z = brick_size.z + stone_size.z / 2
 
+        floor_size = Vec3(self.wall_wd, 1)
+        floor_z = -0.5
+
         for r in range(self.rows):
             for c in range(self.cols):
+                xy = self.space_to_cartesian(r, c)
+
+                self.make_block(f'floor_{r}_{c}', Point3(xy, floor_z), floor_size, BitMask32.bit(5), False, np_brick)
+
+
                 if grid[r, c] == WallExtendingAlgorithm.WALL:
-                    xy = self.space_to_cartesian(r, c)
+                    # xy = self.space_to_cartesian(r, c)
 
                     match (r, c):
                         case self.entrance:
@@ -81,12 +96,17 @@ class MazeBuilder:
                             mask = BitMask32.bit(1) | BitMask32.bit(3)
                             hide = True
                         case _:
-                            mask = BitMask32.bit(1) | BitMask32.bit(2)
+                            mask = BitMask32.bit(1) | BitMask32.bit(2) | BitMask32.bit(4)
                             hide = False
 
                     self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), brick_size, mask, hide, np_brick)
                     self.make_block(f'top_{r}_{c}', Point3(xy, stone_z), stone_size, mask, hide, np_stone)
 
+        
+        # xy = self.space_to_cartesian(22, 22)
+        # self.make_block(f'roof', Point3(0, 0, 7), Vec3(42, 42, 1), BitMask32.bit(4), False, np_stone)
+        
+        
         su = (brick_size.x * 2 + brick_size.y * 2) / 4
         sv = brick_size.z / 4
         np_brick.set_tex_scale(TextureStage.get_default(), su, sv)
@@ -105,3 +125,8 @@ class MazeBuilder:
 
         if hide:
             block.hide()
+
+    def is_in_maze(self, pos):
+        if self.top_left.x < pos.x < self.bottom_right.x \
+                and self.bottom_right.y < pos.y < self.top_left.y:
+            return True
