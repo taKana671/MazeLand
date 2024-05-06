@@ -16,7 +16,7 @@ from create_maze_3d import MazeBuilder, Space
 from lights import BasicAmbientLight, BasicDayLight
 from scene import Scene
 from aircraft import AircraftController
-from maze_walker import MazeWalkerController, Motions
+from maze_walker import MazeWalkerController, Direction
 from create_geomnode import SphericalShape
 
 
@@ -51,6 +51,8 @@ class Maze3D(ShowBase):
         self.debug = self.render.attach_new_node(BulletDebugNode('debug'))
         self.world.set_debug_node(self.debug.node())
 
+        self.scene = Scene(self.world)
+
         self.maze_builder = MazeBuilder(self.world, 21, 21)
         self.maze_builder.build()
 
@@ -69,6 +71,7 @@ class Maze3D(ShowBase):
 
         self.camera.reparent_to(self.camera_controller)
         self.diff = Vec3(0, 4, 3)
+        self.diff = Vec3(0, 1, 3)
         self.camera.look_at(self.floater)
         # self.camera_controller.set_pos(pos)
         self.camLens.set_fov(90)
@@ -99,7 +102,6 @@ class Maze3D(ShowBase):
         self.ambient_light.reparent_to(self.render)
         self.day_light = BasicDayLight()
         self.day_light.reparent_to(self.render)
-        self.scene = Scene(self.world)
 
         self.in_maze = False
         self.speed = Vec2(0)
@@ -130,6 +132,9 @@ class Maze3D(ShowBase):
         print('camera_pos', self.camera.get_pos(self.render))
         print('backward_pos', self.walker_controller.navigate(Vec3(0, 2, 3)) + walker_pos)
         print('camera reative pos', self.camera.get_pos())
+        print('relative_pos', self.walker_controller.navigate(Vec3(0, -1, 0)))
+        print('forwad_vector', self.walker_controller.walker.direction_np.get_quat(base.render).get_forward())
+        print('camera_forwad_vector', self.camera.get_quat(base.render).get_forward())
 
     # def rotate_camera(self, add_angle, max_angle, direction, walker_pos, camera_pos, target_angle=0):
 
@@ -214,7 +219,7 @@ class Maze3D(ShowBase):
                 degree, direction = self.get_rotation_angle(camera_pos, walker_pos, backward_pos)
                 diff = self.rotate_camera(degree * direction)
 
-                print('view obstruction', result.get_node().get_name(), camera_pos, walker_pos)
+                # print('view obstruction', result.get_node().get_name(), camera_pos, walker_pos)
                 return diff
         return None
 
@@ -242,7 +247,7 @@ class Maze3D(ShowBase):
             pos = self.walker_controller.get_walker_pos() + self.diff
             self.camera_controller.set_pos(pos)
 
-        self.camera.look_at(self.walker_controller.walker.actor)
+        self.camera.look_at(self.floater)
 
         # if (result := self.world.ray_test_closest(
         #         camera_pos, walker_pos, mask=BitMask32.bit(4))).has_hit():
@@ -335,10 +340,10 @@ class Maze3D(ShowBase):
             self.total_y -= abs(distance.y)
 
             if self.total_x < 0 or self.total_y < 0:
-                pos = Point3(self.dest, walker_pos.z + 5)
+                pos = Point3(self.dest, walker_pos.z + 3)
                 self.camera.look_at(self.floater)
             else:
-                pos = Point3(self.camera_controller.get_pos().xy + distance, walker_pos.z + 5)
+                pos = Point3(self.camera_controller.get_pos().xy + distance, walker_pos.z + 3)
             self.camera_controller.set_pos(pos)
 
         
@@ -399,21 +404,21 @@ class Maze3D(ShowBase):
 
 
     def control_walker(self, dt):
-        motions = []
+        direction = None
         moving = False
 
         if inputState.is_set('forward'):
-            motions.append(Motions.FORWARD)
+            direction = Direction.FORWARD
             moving = True
-        if inputState.is_set('backward'):
-            motions.append(Motions.BACKWARD)
+        elif inputState.is_set('backward'):
+            direction = Direction.BACKWARD
             moving = True
-        if inputState.is_set('left'):
-            motions.append(Motions.LEFT)
+        elif inputState.is_set('left'):
+            direction = Direction.LEFTWARD
         if inputState.is_set('right'):
-            motions.append(Motions.RIGHT)
+            direction = Direction.RIGHTWARD
 
-        self.walker_controller.update(motions, dt)
+        self.walker_controller.update(direction, dt)
         return moving
 
     def update(self, task):
@@ -428,9 +433,6 @@ class Maze3D(ShowBase):
                 pos = self.walker_controller.get_walker_pos() + self.diff
                 self.camera_controller.set_pos(pos)
                 self.camera.look_at(self.floater)
-                # pos = self.walker_controller.get_walker_pos()
-                # self.camera_controller.set_pos(Point3(-18, 24, pos.z + 3))
-                # self.before_space = self.walker_controller.current_space
                 self.in_maze = True
 
         else:

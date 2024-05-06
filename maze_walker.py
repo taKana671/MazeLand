@@ -1,6 +1,8 @@
-from enum import Enum, auto
+import math
+from enum import Enum, StrEnum, auto
 from collections import deque
 
+import numpy as np
 from direct.actor.Actor import Actor
 from panda3d.bullet import BulletSphereShape, BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode
@@ -10,78 +12,94 @@ from panda3d.core import Vec3, Point3, BitMask32
 from create_maze_3d import Space
 
 
-class Motions:
+class Direction(StrEnum):
 
     FORWARD = auto()
     BACKWARD = auto()
-    LEFT = auto()
-    RIGHT = auto()
+    LEFTWARD = auto()
+    RIGHTWARD = auto()
+
+
+class Status(Enum):
+
+    MOVE = auto()
     TURN = auto()
+    WAIT = auto()
+
+    STOP = auto()
+    LEFT_TURN = auto()
+    RIGHT_TURN = auto()
+    U_TURN = auto()
+    GO_BACK = auto()
+    CHECK_ROUTE = auto()
 
 
-class MazeActor(NodePath):
-
-    RUN = 'run'
-    WALK = 'walk'
+class Character(NodePath):
 
     def __init__(self):
-        super().__init__(BulletRigidBodyNode('maze_actor'))
-        h, w = 6, 1.2
-        shape = BulletCapsuleShape(w, h - 2 * w, ZUp)
+        super().__init__(BulletRigidBodyNode('character'))
+
+        height, radius = 7.0, 1.5
+        shape = BulletCapsuleShape(radius, height - 2 * radius, ZUp)
         self.node().add_shape(shape)
+        self.model = base.loader.loadModel('models/snowman/snowman')
+        self.model.setTransform(TransformState.makePos(Vec3(0, 0, -3)))
+        self.model.reparentTo(self)
+        self.set_scale(0.2)
+
         self.node().set_kinematic(True)
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
         self.set_collide_mask(BitMask32.bit(1) | BitMask32.bit(4))
-        self.set_scale(0.4)  # 0.5
-        # self.set_scale(0.5)  # 0.5
 
-        self.actor = Actor(
-            'models/ralph/ralph.egg',
-            {self.RUN: 'models/ralph/ralph-run.egg',
-             self.WALK: 'models/ralph/ralph-walk.egg'}
-        )
-        self.actor.set_transform(TransformState.make_pos(Vec3(0, 0, -2.5)))
-        # self.actor.set_transform(TransformState.make_pos(Vec3(0, 0, -3)))
-        self.actor.set_name('ralph')
-        self.actor.reparent_to(self)
 
-    def play_anim(self, motion):
-        match motion:
-            case Motions.FORWARD:
-                anim = self.WALK
-                rate = 1
-            case Motions.BACKWARD:
-                anim = self.WALK
-                rate = -1
-            case Motions.TURN:
-                anim = self.WALK
-                rate = 1
-            case _:
-                if self.actor.get_current_anim() is not None:
-                    self.actor.stop()
-                    self.actor.pose(self.WALK, 5)
-                return
+class Sensor(NodePath):
 
-        if self.actor.get_current_anim() != anim:
-            self.actor.loop(anim)
-            self.actor.set_play_rate(rate, anim)
+    def __init__(self, direction, pos, world):
+        super().__init__(PandaNode(direction.value))
+        self.world = world
+        self.direction = direction
+        self.set_pos(pos)
+
+    def detect_obstacles(self, pos_from, bit=2):
+        pos_to = self.get_pos(base.render)
+
+        if (result := self.world.ray_test_closest(
+                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
+            return result
 
 
 class MazeWalker:
 
     def __init__(self, world):
         self.world = world
+
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
-        self.actor = MazeActor()
-        self.actor.reparent_to(self.direction_np)
+
+        self.character = Character()
+        self.character.reparent_to(self.direction_np)
         self.direction_np.reparent_to(self.root_np)
         self.root_np.reparent_to(base.render)
-        self.world.attach(self.actor.node())
+        self.world.attach(self.character.node())
 
         self.linear_velocity = 5
         self.angular_velocity = 100
+        self.total_angle = 0
+        self.total_dt = 0
+
+        self.create_sensors()
+
+    def create_sensors(self):
+        self.sensors = [
+            Sensor(Direction.FORWARD, Vec3(0, -1.5, 0), self.world),
+            Sensor(Direction.BACKWARD, Vec3(0, 1.5, 0), self.world),
+            Sensor(Direction.LEFTWARD, Vec3(1.5, 0, 0), self.world),
+            Sensor(Direction.RIGHTWARD, Vec3(-1.5, 0, 0), self.world),
+        ]
+
+        for sensor in self.sensors:
+            sensor.reparent_to(self.direction_np)
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -89,46 +107,74 @@ class MazeWalker:
     def get_pos(self):
         return self.root_np.get_pos()
 
-    def turn(self, direction, dt):
-        if not direction:
-            return
+    def get_passing_points(self):
+        start_pt = self.get_pos()
+        forward_vector = self.direction_np.get_quat(base.render).get_forward() * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
+        to_pos = forward_vector * 2 + start_pt
+        hit = self.cast_ray_downward(to_pos)
+        end_pt = hit.get_hit_pos() + Vec3(0, 0, 0.5)
 
-        angle = direction * self.angular_velocity * dt
-        self.direction_np.set_h(self.direction_np.get_h() + angle)
+        mid_pt = (start_pt + end_pt) / 2
+        mid_pt.z += 1
 
-    def move(self, direction, dt):
-        if not direction:
-            return
+        self.passing_pts = (start_pt, mid_pt, end_pt)
+        self.total_dt = 0
 
-        current_pos = self.get_pos()
-        forward_vector = self.direction_np.get_quat(base.render).get_forward()
-        speed = self.linear_velocity if direction < 0 else self.linear_velocity / 2
-        pos_to = current_pos + forward_vector * direction * speed * dt
+    def bernstein(self, n, k):
+        coef = math.factorial(n) / (math.factorial(k) * math.factorial(n - k))
+        return coef * self.total_dt ** k * (1 - self.total_dt) ** (n - k)
 
-        # offset = self.detect_collision()
-        # print(offset)
+    def bezier_curve(self, dt):
+        self.total_dt += dt
 
-        if ground_pos := self.cast_ray_downward(pos_to):
-            next_pos = ground_pos + Vec3(0, 0, 1.5)  #  + offset
+        if self.total_dt > 1:
+            self.total_dt = 1
 
-            if self.predict_collision(current_pos, next_pos):
-                # if offset != 0:
-                #     self.set_pos(current_pos + offset)
-                return
+        n = len(self.passing_pts) - 1
+        px = py = pz = 0
 
-            self.set_pos(next_pos)
+        for i, pt in enumerate(self.passing_pts):
+            b = self.bernstein(n, i)
+            px += np.dot(b, pt[0])
+            py += np.dot(b, pt[1])
+            pz += np.dot(b, pt[2])
 
-    def play_anim(self, motion):
-        self.actor.play_anim(motion)
+        return Point3(px, py, pz)
+
+    def check_route(self, direction):
+        pos_from = self.root_np.get_pos()
+        for sensor in self.sensors:
+            if direction == sensor.direction:
+                if not sensor.detect_obstacles(pos_from):
+                    return True
 
     def cast_ray_downward(self, pos_from):
         pos_to = pos_from + Vec3(0, 0, -30)
 
         if (result := self.world.ray_test_closest(
                 pos_from, pos_to, mask=BitMask32.bit(1))).has_hit():
-            return result.get_hit_pos()
+            return result
 
         return None
+
+    def turn(self, rotate_direction, dt, max_angle=90):
+        angle = self.angular_velocity * dt
+
+        if (total := self.total_angle + angle) >= max_angle:
+            diff = max_angle - self.total_angle
+            self.direction_np.set_h(self.direction_np.get_h() + diff * rotate_direction)
+            self.total_angle = 0
+            return True
+
+        self.total_angle = total
+        self.direction_np.set_h(self.direction_np.get_h() + angle * rotate_direction)
+
+    def move(self, dt):
+        next_pt = self.bezier_curve(dt)
+        self.set_pos(next_pt)
+
+        if self.total_dt == 1:
+            return True
 
     def cast_ray_downward_brick(self, pos_from):
         pos_to = pos_from + Vec3(0, 0, -30)
@@ -173,42 +219,62 @@ class MazeWalkerController:
 
         self.walker = MazeWalker(self.world)
         xy = self.maze_builder.get_exit()
-        xy.y += self.maze_builder.wall_wd.y * 2
-        print('walker start pos', Point3(xy, -7))
-        self.walker.set_pos(Point3(xy, -7))
+        print('walker start pos', Point3(xy, -5))
+        self.walker.set_pos(Point3(xy, -8.5))
 
         self.current_space = None
         self.queue = deque()
+        self.state = Status.STOP
 
-    def update(self, motions, dt):
-        # print(self.walker.get_pos())
-        move_direction = 0
-        rotate_direction = 0
-        motion = None
+    def change_direction(self, direction):
+        if not direction:
+            return None
 
-        if Motions.LEFT in motions:
-            rotate_direction += 1
-            motion = Motions.TURN
+        if not self.walker.check_route(direction):
+            return None
 
-        if Motions.RIGHT in motions:
-            rotate_direction -= 1
-            motion = Motions.TURN
+        match direction:
+            case Direction.FORWARD:
+                return Status.CHECK_ROUTE
+            case Direction.BACKWARD:
+                return Status.U_TURN
+            case Direction.LEFTWARD:
+                return Status.LEFT_TURN
+            case Direction.RIGHTWARD:
+                return Status.RIGHT_TURN
 
-        if Motions.FORWARD in motions:
-            move_direction += -1
-            motion = Motions.FORWARD
+    def update(self, direction, dt):
 
-        if Motions.BACKWARD in motions:
-            move_direction += 1
-            motion = Motions.BACKWARD
+        match self.state:
+            case Status.STOP:
+                self.state = self.change_direction(direction)
 
-        self.walker.turn(rotate_direction, dt)
-        self.walker.move(move_direction, dt)
-        self.walker.play_anim(motion)
+            case Status.LEFT_TURN:
+                if self.walker.turn(1, dt):
+                    self.state = Status.CHECK_ROUTE
+
+            case Status.RIGHT_TURN:
+                if self.walker.turn(-1, dt):
+                    self.state = Status.CHECK_ROUTE
+
+            case Status.CHECK_ROUTE:
+                self.walker.get_passing_points()
+                self.state = Status.MOVE
+
+            case Status.MOVE:
+                if self.walker.move(dt):
+                    self.state = Status.STOP
+
+            case Status.U_TURN:
+                if self.walker.turn(-1, dt, 180):
+                    self.state = Status.CHECK_ROUTE
+
+            case _:
+                self.state = Status.STOP
 
         pos = self.walker.root_np.get_pos()
         self.current_space = Space(int(pos.y), int(pos.x))
-        self.move_direction = move_direction
+        self.move_direction = direction
 
     def is_walker_in_maze(self):
         pos = self.walker.get_pos()
