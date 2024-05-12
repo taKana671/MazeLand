@@ -1,5 +1,5 @@
 import math
-from enum import Enum, StrEnum, auto
+from enum import Enum, IntEnum, StrEnum, auto
 from collections import deque
 
 import numpy as np
@@ -7,31 +7,10 @@ from direct.actor.Actor import Actor
 from panda3d.bullet import BulletSphereShape, BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
-from panda3d.core import Vec3, Point3, BitMask32
+from panda3d.core import Vec3, Point3, BitMask32, Point2, Quat
 
 from create_maze_3d import Space
-
-
-class Direction(StrEnum):
-
-    FORWARD = auto()
-    BACKWARD = auto()
-    LEFTWARD = auto()
-    RIGHTWARD = auto()
-
-
-class Status(Enum):
-
-    MOVE = auto()
-    TURN = auto()
-    WAIT = auto()
-
-    STOP = auto()
-    LEFT_TURN = auto()
-    RIGHT_TURN = auto()
-    U_TURN = auto()
-    GO_BACK = auto()
-    CHECK_ROUTE = auto()
+from basic_character import Sensor, Direction, Status
 
 
 class Character(NodePath):
@@ -53,22 +32,6 @@ class Character(NodePath):
         self.set_collide_mask(BitMask32.bit(1) | BitMask32.bit(4))
 
 
-class Sensor(NodePath):
-
-    def __init__(self, direction, pos, world):
-        super().__init__(PandaNode(direction.value))
-        self.world = world
-        self.direction = direction
-        self.set_pos(pos)
-
-    def detect_obstacles(self, pos_from, bit=2):
-        pos_to = self.get_pos(base.render)
-
-        if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
-            return result
-
-
 class MazeWalker:
 
     def __init__(self, world):
@@ -84,9 +47,12 @@ class MazeWalker:
         self.world.attach(self.character.node())
 
         self.linear_velocity = 5
-        self.angular_velocity = 100
+        self.angular_velocity = 200
+        self.max_acceleration = 15
+
         self.total_angle = 0
         self.total_dt = 0
+        self.total_acceleration = 0
 
         self.create_sensors()
 
@@ -107,9 +73,10 @@ class MazeWalker:
     def get_pos(self):
         return self.root_np.get_pos()
 
-    def get_passing_points(self):
+    # def get_passing_points(self, direction=1):
+    def get_passing_points(self, direction):
         start_pt = self.get_pos()
-        forward_vector = self.direction_np.get_quat(base.render).get_forward() * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
+        forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
         to_pos = forward_vector * 2 + start_pt
         hit = self.cast_ray_downward(to_pos)
         end_pt = hit.get_hit_pos() + Vec3(0, 0, 0.5)
@@ -176,6 +143,14 @@ class MazeWalker:
         if self.total_dt == 1:
             return True
 
+    def jump(self, dt):
+        if self.total_acceleration <= -1 * self.max_acceleration:
+            return True
+
+        next_z = self.total_acceleration * dt
+        self.root_np.set_z(self.root_np.get_z() + next_z)
+        self.total_acceleration -= 0.98 * 0.25
+
     def cast_ray_downward_brick(self, pos_from):
         pos_to = pos_from + Vec3(0, 0, -30)
 
@@ -216,65 +191,80 @@ class MazeWalkerController:
     def __init__(self, world, maze_builder):
         self.world = world
         self.maze_builder = maze_builder
+        self.queue = deque()
+        self.camera_queue = deque()
 
         self.walker = MazeWalker(self.world)
         xy = self.maze_builder.get_exit()
         print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
+        self.queue.append(Point2(-18, 22))
+        self.queue.append(xy)
 
         self.current_space = None
-        self.queue = deque()
         self.state = Status.STOP
+        self.walker_direction = None
 
     def change_direction(self, direction):
         if not direction:
             return None
 
-        if not self.walker.check_route(direction):
-            return None
+        # if not self.walker.check_route(direction):
+        #     return None
 
         match direction:
+
             case Direction.FORWARD:
-                return Status.CHECK_ROUTE
+                if not self.walker.check_route(direction):
+                    return None
+                return Status.GO_FORWARD
+
             case Direction.BACKWARD:
-                return Status.U_TURN
+                if not self.walker.check_route(direction):
+                    return None
+                return Status.GO_BACK
+
             case Direction.LEFTWARD:
                 return Status.LEFT_TURN
+
             case Direction.RIGHTWARD:
                 return Status.RIGHT_TURN
 
-    def update(self, direction, dt):
+            case Direction.UPWARD:
+                self.walker.total_acceleration = self.walker.max_acceleration
+                return Status.DO_JUMP
 
+    def update(self, direction, dt):
         match self.state:
             case Status.STOP:
                 self.state = self.change_direction(direction)
 
             case Status.LEFT_TURN:
                 if self.walker.turn(1, dt):
-                    self.state = Status.CHECK_ROUTE
+                    self.state = Status.STOP
 
             case Status.RIGHT_TURN:
                 if self.walker.turn(-1, dt):
-                    self.state = Status.CHECK_ROUTE
+                    self.state = Status.STOP
 
-            case Status.CHECK_ROUTE:
-                self.walker.get_passing_points()
+            case Status.GO_FORWARD:
+                self.walker.get_passing_points(1)
                 self.state = Status.MOVE
 
             case Status.MOVE:
                 if self.walker.move(dt):
                     self.state = Status.STOP
 
-            case Status.U_TURN:
-                if self.walker.turn(-1, dt, 180):
-                    self.state = Status.CHECK_ROUTE
+            case Status.GO_BACK:
+                self.walker.get_passing_points(-1)
+                self.state = Status.MOVE
+
+            case Status.DO_JUMP:
+                if self.walker.jump(dt):
+                    self.state = Status.STOP
 
             case _:
                 self.state = Status.STOP
-
-        pos = self.walker.root_np.get_pos()
-        self.current_space = Space(int(pos.y), int(pos.x))
-        self.move_direction = direction
 
     def is_walker_in_maze(self):
         pos = self.walker.get_pos()
@@ -285,55 +275,3 @@ class MazeWalkerController:
 
     def get_walker_pos(self):
         return self.walker.root_np.get_pos()
-
-    def check_current_pos(self):
-        if hit := self.walker.cast_ray_downward_brick(self.get_walker_pos()):
-            # print(hit.get_node().get_name(), hit.get_hit_pos())
-            name = hit.get_node().get_name()
-            _, r, c = name.split('_')
-            space = Space(int(r), int(c))
-
-            if len(self.queue) == 0:
-                self.queue.append(space)
-                return None
-
-
-            if self.queue[-1] != space:
-                if len(self.queue) >= 1:
-                    # 後戻り
-                    if self.queue[-1] == space:
-                        self.queue.pop()
-
-                        if len(self.queue) >= 2:
-                            return self.queue[-2]
-                    else:
-                        self.queue.append(space)
-                        if len(self.queue) >= 2:
-                            return self.queue[-2]
-                # else:
-                #     self.queue.append(space)
-
-                self.queue.append(space)
-
-            
-            # if self.queue[-1] != space:
-            #     if len(self.queue) >= 2:
-            #         # 後戻り
-            #         if self.queue[-2] == space:
-            #             self.queue.pop()
-
-            #             if len(self.queue) >= 3:
-            #                 return self.queue[-3]
-            #         else:
-            #             self.queue.append(space)
-            #             if len(self.queue) >= 3:
-            #                 return self.queue[-3]
-            #     # else:
-            #     #     self.queue.append(space)
-
-            #     self.queue.append(space)
-          
-        return None
-                
-
-
