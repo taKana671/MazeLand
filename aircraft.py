@@ -1,5 +1,4 @@
 import random
-from enum import Enum, StrEnum, auto
 
 from panda3d.bullet import BulletRigidBodyNode, BulletSphereShape, BulletConvexHullShape
 from panda3d.core import NodePath, PandaNode
@@ -7,24 +6,7 @@ from panda3d.core import TransformState, Vec3, BitMask32, Point3, LColor
 
 from create_geomnode import SphericalShape, RightTriangularPrism
 from utils import create_line_node
-
-
-class Status(Enum):
-
-    MOVE = auto()
-    STOP = auto()
-    LEFT_TURN = auto()
-    RIGHT_TURN = auto()
-    U_TURN = auto()
-    GO_BACK = auto()
-    CHECK_ROUTE = auto()
-
-
-class Direction(StrEnum):
-
-    FORWARD = auto()
-    RIGHT = auto()
-    LEFT = auto()
+from basic_character import Status, Direction, Sensor
 
 
 class AirFrame(NodePath):
@@ -60,22 +42,6 @@ class AirFrame(NodePath):
         shape = BulletConvexHullShape()
         shape.add_geom(wing.node().get_geom(0))
         self.node().add_shape(shape, TransformState.make_pos_hpr(pos, hpr))
-
-
-class Sensor(NodePath):
-
-    def __init__(self, direction, pos, world):
-        super().__init__(PandaNode(direction.value))
-        self.world = world
-        self.direction = direction
-        self.set_pos(pos)
-
-    def detect_obstacles(self, pos_from, bit=2):
-        pos_to = self.get_pos(base.render)
-
-        if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
-            return result
 
 
 class Aircraft:
@@ -115,13 +81,21 @@ class Aircraft:
 
     def create_sensors(self):
         self.sensors = [
-            Sensor(Direction.FORWARD, Vec3(0, 1.5, 0), self.world),
-            Sensor(Direction.LEFT, Vec3(-1.5, 0, 0), self.world),
-            Sensor(Direction.RIGHT, Vec3(1.5, 0, 0), self.world),
+            Sensor(self.world, Direction.FORWARD),
+            Sensor(self.world, Direction.LEFTWARD),
+            Sensor(self.world, Direction.RIGHTWARD),
         ]
 
         for sensor in self.sensors:
             sensor.reparent_to(self.direction_np)
+        # self.sensors = [
+        #     Sensor(Direction.FORWARD, Vec3(0, 1.5, 0), self.world),
+        #     Sensor(Direction.LEFT, Vec3(-1.5, 0, 0), self.world),
+        #     Sensor(Direction.RIGHT, Vec3(1.5, 0, 0), self.world),
+        # ]
+
+        # for sensor in self.sensors:
+        #     sensor.reparent_to(self.direction_np)
 
     def draw_debug_lines(self):
         color = LColor(0, 0, 1, 1)
@@ -141,27 +115,17 @@ class Aircraft:
             if not sensor.detect_obstacles(pos_from):
                 yield sensor.direction
 
-    def turn_right(self, max_angle, dt):
-        angle = -self.angular_velocity * dt
-        self.total_angle += angle
-
-        if (diff := self.total_angle - max_angle) <= 0:
-            self.direction_np.set_h(self.direction_np.get_h() + angle - diff)
-            self.total_angle = 0
-            return True
-
-        self.direction_np.set_h(self.direction_np.get_h() + angle)
-
-    def turn_left(self, max_angle, dt):
+    def turn(self, rotate_direction, dt, max_angle=90):
         angle = self.angular_velocity * dt
-        self.total_angle += angle
 
-        if (diff := self.total_angle - max_angle) >= 0:
-            self.direction_np.set_h(self.direction_np.get_h() + angle - diff)
+        if (total := self.total_angle + angle) >= max_angle:
+            diff = max_angle - self.total_angle
+            self.direction_np.set_h(self.direction_np.get_h() - diff * rotate_direction)
             self.total_angle = 0
             return True
 
-        self.direction_np.set_h(self.direction_np.get_h() + angle)
+        self.total_angle = total
+        self.direction_np.set_h(self.direction_np.get_h() - angle * rotate_direction)
 
     def move_forward(self, max_distance, dt):
         forward_vector = self.direction_np.get_quat(base.render).get_forward()
@@ -219,10 +183,10 @@ class AircraftController:
             case Direction.FORWARD:
                 return Status.MOVE
 
-            case Direction.LEFT:
+            case Direction.LEFTWARD:
                 return Status.LEFT_TURN
 
-            case Direction.RIGHT:
+            case Direction.RIGHTWARD:
                 return Status.RIGHT_TURN
 
     def update(self, dt):
@@ -236,13 +200,13 @@ class AircraftController:
                     self.state = Status.STOP
 
             case Status.LEFT_TURN:
-                if self.aircraft.turn_left(90, dt):
+                if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt):
                     self.state = Status.MOVE
 
             case Status.RIGHT_TURN:
-                if self.aircraft.turn_right(-90, dt):
+                if self.aircraft.turn(Direction.RIGHTWARD.get_direction(), dt):
                     self.state = Status.MOVE
 
             case Status.U_TURN:
-                if self.aircraft.turn_left(180, dt):
+                if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt, 180):
                     self.state = Status.MOVE

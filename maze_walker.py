@@ -1,9 +1,6 @@
 import math
-from enum import Enum, IntEnum, StrEnum, auto
-from collections import deque
 
 import numpy as np
-from direct.actor.Actor import Actor
 from panda3d.bullet import BulletSphereShape, BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
@@ -52,20 +49,29 @@ class MazeWalker:
 
         self.total_angle = 0
         self.total_dt = 0
-        self.total_acceleration = 0
+        self.acceleration = 0
 
         self.create_sensors()
 
     def create_sensors(self):
         self.sensors = [
-            Sensor(Direction.FORWARD, Vec3(0, -1.5, 0), self.world),
-            Sensor(Direction.BACKWARD, Vec3(0, 1.5, 0), self.world),
-            Sensor(Direction.LEFTWARD, Vec3(1.5, 0, 0), self.world),
-            Sensor(Direction.RIGHTWARD, Vec3(-1.5, 0, 0), self.world),
+            Sensor(self.world, Direction.FORWARD, -1),
+            Sensor(self.world, Direction.BACKWARD, -1),
+            Sensor(self.world, Direction.LEFTWARD, -1),
+            Sensor(self.world, Direction.RIGHTWARD, -1),
         ]
 
         for sensor in self.sensors:
             sensor.reparent_to(self.direction_np)
+        # self.sensors = [
+        #     Sensor(Direction.FORWARD, Vec3(0, -1.5, 0), self.world),
+        #     Sensor(Direction.BACKWARD, Vec3(0, 1.5, 0), self.world),
+        #     Sensor(Direction.LEFTWARD, Vec3(1.5, 0, 0), self.world),
+        #     Sensor(Direction.RIGHTWARD, Vec3(-1.5, 0, 0), self.world),
+        # ]
+
+        # for sensor in self.sensors:
+        #     sensor.reparent_to(self.direction_np)
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -76,7 +82,7 @@ class MazeWalker:
     # def get_passing_points(self, direction=1):
     def get_passing_points(self, direction):
         start_pt = self.get_pos()
-        forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
+        forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction  #  * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
         to_pos = forward_vector * 2 + start_pt
         hit = self.cast_ray_downward(to_pos)
         end_pt = hit.get_hit_pos() + Vec3(0, 0, 0.5)
@@ -144,12 +150,12 @@ class MazeWalker:
             return True
 
     def jump(self, dt):
-        if self.total_acceleration <= -1 * self.max_acceleration:
+        if self.acceleration <= -1 * self.max_acceleration:
             return True
 
-        next_z = self.total_acceleration * dt
+        next_z = self.acceleration * dt
         self.root_np.set_z(self.root_np.get_z() + next_z)
-        self.total_acceleration -= 0.98 * 0.25
+        self.acceleration -= 0.98 * 0.25
 
     def cast_ray_downward_brick(self, pos_from):
         pos_to = pos_from + Vec3(0, 0, -30)
@@ -191,38 +197,24 @@ class MazeWalkerController:
     def __init__(self, world, maze_builder):
         self.world = world
         self.maze_builder = maze_builder
-        self.queue = deque()
-        self.camera_queue = deque()
-
         self.walker = MazeWalker(self.world)
+
+        self.orient = -1
         xy = self.maze_builder.get_exit()
         print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
-        self.queue.append(Point2(-18, 22))
-        self.queue.append(xy)
-
-        self.current_space = None
         self.state = Status.STOP
-        self.walker_direction = None
 
     def change_direction(self, direction):
-        if not direction:
-            return None
-
-        # if not self.walker.check_route(direction):
-        #     return None
 
         match direction:
 
-            case Direction.FORWARD:
+            case Direction.FORWARD | Direction.BACKWARD:
                 if not self.walker.check_route(direction):
                     return None
-                return Status.GO_FORWARD
 
-            case Direction.BACKWARD:
-                if not self.walker.check_route(direction):
-                    return None
-                return Status.GO_BACK
+                self.walker.get_passing_points(direction.get_direction(self.orient))
+                return Status.MOVE
 
             case Direction.LEFTWARD:
                 return Status.LEFT_TURN
@@ -231,33 +223,26 @@ class MazeWalkerController:
                 return Status.RIGHT_TURN
 
             case Direction.UPWARD:
-                self.walker.total_acceleration = self.walker.max_acceleration
+                self.walker.acceleration = self.walker.max_acceleration
                 return Status.DO_JUMP
 
     def update(self, direction, dt):
         match self.state:
             case Status.STOP:
-                self.state = self.change_direction(direction)
+                if direction:
+                    self.state = self.change_direction(direction)
 
             case Status.LEFT_TURN:
-                if self.walker.turn(1, dt):
+                if self.walker.turn(Direction.LEFTWARD.get_direction(self.orient), dt):
                     self.state = Status.STOP
 
             case Status.RIGHT_TURN:
-                if self.walker.turn(-1, dt):
+                if self.walker.turn(Direction.RIGHTWARD.get_direction(self.orient), dt):
                     self.state = Status.STOP
-
-            case Status.GO_FORWARD:
-                self.walker.get_passing_points(1)
-                self.state = Status.MOVE
 
             case Status.MOVE:
                 if self.walker.move(dt):
                     self.state = Status.STOP
-
-            case Status.GO_BACK:
-                self.walker.get_passing_points(-1)
-                self.state = Status.MOVE
 
             case Status.DO_JUMP:
                 if self.walker.jump(dt):

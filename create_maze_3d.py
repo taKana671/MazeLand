@@ -70,7 +70,7 @@ class MazeBuilder:
         np_stone.reparent_to(self.np_walls)
 
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
-        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 3)
+        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 2)  # 3
         stone_size = Vec3(self.wall_wd, 0.5)
         brick_z = brick_size.z / 2
         stone_z = brick_size.z + stone_size.z / 2
