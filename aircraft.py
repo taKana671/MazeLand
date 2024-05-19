@@ -50,11 +50,11 @@ class Aircraft:
         self.world = world
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
-        air_frame = AirFrame()
-        air_frame.reparent_to(self.direction_np)
+        self.air_frame = AirFrame()
+        self.air_frame.reparent_to(self.direction_np)
         self.direction_np.reparent_to(self.root_np)
         self.root_np.reparent_to(base.render)
-        self.world.attach(air_frame.node())
+        self.world.attach(self.air_frame.node())
 
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity

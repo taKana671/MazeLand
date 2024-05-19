@@ -38,6 +38,12 @@ class Direction(Enum):
             case (x, y, z) if z != 0:
                 return z * orientation
 
+    @classmethod
+    def around(cls):
+        for direction in cls:
+            if direction not in [cls.UPWARD, cls.DOWNWARD]:
+                yield Vec3(direction.value)
+
 
 class Sensor(NodePath):
     """Detect obstacles by casting ray.

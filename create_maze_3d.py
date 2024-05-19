@@ -44,9 +44,8 @@ class MazeBuilder:
 
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(base.render)
-        self.np_walls.set_pos(0, 0, -10)  # -10 terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
+        self.np_walls.set_pos(0, 0, -12)  # -10 terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
         # self.np_walls.set_pos(0, 0, -10)
-
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
@@ -71,22 +70,14 @@ class MazeBuilder:
 
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
         brick_size = Vec3(self.wall_wd, self.wall_wd.x * 2)  # 3
-        stone_size = Vec3(self.wall_wd, 0.5)
+        stone_size = Vec3(self.wall_wd, 0.25)
         brick_z = brick_size.z / 2
         stone_z = brick_size.z + stone_size.z / 2
 
-        floor_size = Vec3(self.wall_wd, 1)
-        floor_z = -0.5
-
         for r in range(self.rows):
             for c in range(self.cols):
-                xy = self.space_to_cartesian(r, c)
-
-                self.make_block(f'floor_{r}_{c}', Point3(xy, floor_z), floor_size, BitMask32.bit(5), False, np_brick)
-
-
                 if grid[r, c] == WallExtendingAlgorithm.WALL:
-                    # xy = self.space_to_cartesian(r, c)
+                    xy = self.space_to_cartesian(r, c)
 
                     match (r, c):
                         case self.entrance:
@@ -102,11 +93,6 @@ class MazeBuilder:
                     self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), brick_size, mask, hide, np_brick)
                     self.make_block(f'top_{r}_{c}', Point3(xy, stone_z), stone_size, mask, hide, np_stone)
 
-        
-        # xy = self.space_to_cartesian(22, 22)
-        # self.make_block(f'roof', Point3(0, 0, 7), Vec3(42, 42, 1), BitMask32.bit(4), False, np_stone)
-        
-        
         su = (brick_size.x * 2 + brick_size.y * 2) / 4
         sv = brick_size.z / 4
         np_brick.set_tex_scale(TextureStage.get_default(), su, sv)

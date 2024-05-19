@@ -156,7 +156,7 @@ class RingShape(GeomRoot):
         return (self.segs_rcnt + 1) * (self.segs_s + 1)
 
 
-@singleton
+# @singleton
 class SphericalShape(GeomRoot):
     """Create a geom node of sphere.
        Args:
@@ -442,7 +442,7 @@ class Cube(GeomRoot):
         return vertex_count
 
 
-@singleton
+# @singleton
 class RightTriangularPrism(GeomRoot):
     """Create a geom node of right triangular prism.
         Arges:

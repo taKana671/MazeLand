@@ -1,10 +1,12 @@
 import math
+from collections import deque
+from typing import NamedTuple
 
 import numpy as np
 from panda3d.bullet import BulletSphereShape, BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
-from panda3d.core import Vec3, Point3, BitMask32, Point2, Quat
+from panda3d.core import Vec3, Point3, BitMask32, Point2, Quat, LColor
 
 from create_maze_3d import Space
 from basic_character import Sensor, Direction, Status
@@ -27,6 +29,13 @@ class Character(NodePath):
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
         self.set_collide_mask(BitMask32.bit(1) | BitMask32.bit(4))
+
+
+class PassingPoints(NamedTuple):
+
+    start: Point3
+    mid: Point3
+    end: Point3
 
 
 class MazeWalker:
@@ -63,15 +72,6 @@ class MazeWalker:
 
         for sensor in self.sensors:
             sensor.reparent_to(self.direction_np)
-        # self.sensors = [
-        #     Sensor(Direction.FORWARD, Vec3(0, -1.5, 0), self.world),
-        #     Sensor(Direction.BACKWARD, Vec3(0, 1.5, 0), self.world),
-        #     Sensor(Direction.LEFTWARD, Vec3(1.5, 0, 0), self.world),
-        #     Sensor(Direction.RIGHTWARD, Vec3(-1.5, 0, 0), self.world),
-        # ]
-
-        # for sensor in self.sensors:
-        #     sensor.reparent_to(self.direction_np)
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -83,6 +83,7 @@ class MazeWalker:
     def get_passing_points(self, direction):
         start_pt = self.get_pos()
         forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction  #  * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
+        # print('forward_vector', forward_vector)
         to_pos = forward_vector * 2 + start_pt
         hit = self.cast_ray_downward(to_pos)
         end_pt = hit.get_hit_pos() + Vec3(0, 0, 0.5)
@@ -90,7 +91,7 @@ class MazeWalker:
         mid_pt = (start_pt + end_pt) / 2
         mid_pt.z += 1
 
-        self.passing_pts = (start_pt, mid_pt, end_pt)
+        self.passing_pts = PassingPoints(start_pt, mid_pt, end_pt)
         self.total_dt = 0
 
     def bernstein(self, n, k):
@@ -147,6 +148,7 @@ class MazeWalker:
         self.set_pos(next_pt)
 
         if self.total_dt == 1:
+            self.set_pos(self.passing_pts.end)
             return True
 
     def jump(self, dt):
@@ -183,7 +185,7 @@ class MazeWalker:
     def predict_collision(self, pos_from, pos_to):
         ts_from = TransformState.make_pos(pos_from)
         ts_to = TransformState.make_pos(pos_to)
-        shape = BulletSphereShape(0.6)
+        shape = BulletSphereShape(0.5)
 
         if (result := self.world.sweep_test_closest(
                 shape, ts_from, ts_to, BitMask32.bit(2), 0.0)).has_hit():
@@ -205,6 +207,8 @@ class MazeWalkerController:
         self.walker.set_pos(Point3(xy, -8.5))
         self.state = Status.STOP
 
+        self.trace_q = deque()
+
     def change_direction(self, direction):
 
         match direction:
@@ -214,6 +218,7 @@ class MazeWalkerController:
                     return None
 
                 self.walker.get_passing_points(direction.get_direction(self.orient))
+                self.trace_q.append(self.walker.passing_pts)
                 return Status.MOVE
 
             case Direction.LEFTWARD:
