@@ -8,6 +8,8 @@ from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
 from panda3d.core import Vec3, Point3, BitMask32, Point2, Quat, LColor
 
+from direct.interval.IntervalGlobal import ProjectileInterval, Parallel, Sequence
+
 from create_maze_3d import Space
 from basic_character import Sensor, Direction, Status
 
@@ -28,7 +30,7 @@ class Character(NodePath):
         self.node().set_kinematic(True)
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
-        self.set_collide_mask(BitMask32.bit(1) | BitMask32.bit(4))
+        self.set_collide_mask(BitMask32.bit(4))
 
 
 class PassingPoints(NamedTuple):
@@ -40,7 +42,7 @@ class PassingPoints(NamedTuple):
 
 class MazeWalker:
 
-    def __init__(self, world):
+    def __init__(self, world, moving_distance):
         self.world = world
 
         self.root_np = NodePath('root')
@@ -52,10 +54,10 @@ class MazeWalker:
         self.root_np.reparent_to(base.render)
         self.world.attach(self.character.node())
 
-        self.linear_velocity = 5
+        self.moving_distance = moving_distance
         self.angular_velocity = 200
         self.max_acceleration = 15
-
+        self.character_z = 0.5
         self.total_angle = 0
         self.total_dt = 0
         self.acceleration = 0
@@ -79,14 +81,12 @@ class MazeWalker:
     def get_pos(self):
         return self.root_np.get_pos()
 
-    # def get_passing_points(self, direction=1):
     def get_passing_points(self, direction):
         start_pt = self.get_pos()
-        forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction  #  * -1   # 出口からスタートするので-1が必要？変数で可変にするstart_direction=-1みたいに
-        # print('forward_vector', forward_vector)
-        to_pos = forward_vector * 2 + start_pt
+        forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction
+        to_pos = forward_vector * self.moving_distance + start_pt
         hit = self.cast_ray_downward(to_pos)
-        end_pt = hit.get_hit_pos() + Vec3(0, 0, 0.5)
+        end_pt = hit.get_hit_pos() + Vec3(0, 0, self.character_z)
 
         mid_pt = (start_pt + end_pt) / 2
         mid_pt.z += 1
@@ -119,14 +119,15 @@ class MazeWalker:
         pos_from = self.root_np.get_pos()
         for sensor in self.sensors:
             if direction == sensor.direction:
-                if not sensor.detect_obstacles(pos_from):
+                if not sensor.detect_obstacles(pos_from, bit=4):
                     return True
 
-    def cast_ray_downward(self, pos_from):
-        pos_to = pos_from + Vec3(0, 0, -30)
+    def cast_ray_downward(self, pos, bit=1):
+        pos_from = pos + Vec3(0, 0, 3)
+        pos_to = pos + Vec3(0, 0, -10)
 
         if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(1))).has_hit():
+                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
             return result
 
         return None
@@ -153,59 +154,30 @@ class MazeWalker:
 
     def jump(self, dt):
         if self.acceleration <= -1 * self.max_acceleration:
+            hit = self.cast_ray_downward(self.root_np.get_pos())
+            landing_pos = hit.get_hit_pos() + Vec3(0, 0, self.character_z)
+            self.root_np.set_z(landing_pos.z)
             return True
 
         next_z = self.acceleration * dt
         self.root_np.set_z(self.root_np.get_z() + next_z)
         self.acceleration -= 0.98 * 0.25
 
-    def cast_ray_downward_brick(self, pos_from):
-        pos_to = pos_from + Vec3(0, 0, -30)
-
-        if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(5))).has_hit():
-            return result
-
-        return None
-
-    def detect_collision(self):
-        result = self.world.contact_test(self.actor.node(), use_filter=True)
-        offset = Vec3()
-
-        for contact in result.getContacts():
-            if contact.getNode1().get_name() != 'terrain':
-                # print(contact.getNode0().get_name(), contact.getNode1().get_name())
-                mf = contact.get_manifold_point()
-                dist = mf.get_distance()
-                normal = mf.get_normal_world_on_b()
-                offset -= normal * dist * 2    #  * 0.5
-
-        return offset
-
-    def predict_collision(self, pos_from, pos_to):
-        ts_from = TransformState.make_pos(pos_from)
-        ts_to = TransformState.make_pos(pos_to)
-        shape = BulletSphereShape(0.5)
-
-        if (result := self.world.sweep_test_closest(
-                shape, ts_from, ts_to, BitMask32.bit(2), 0.0)).has_hit():
-            return result
-
-        return None
-
 
 class MazeWalkerController:
 
-    def __init__(self, world, maze_builder):
+    def __init__(self, world, maze_builder, aircraft):
         self.world = world
         self.maze_builder = maze_builder
-        self.walker = MazeWalker(self.world)
+        self.walker = MazeWalker(self.world, maze_builder.wall_size.x)
+        self.aircraft = aircraft
 
         self.orient = -1
         xy = self.maze_builder.get_exit()
         print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
         self.state = Status.STOP
+        self.game_start = False
 
         self.trace_q = deque()
 
@@ -232,6 +204,10 @@ class MazeWalkerController:
                 return Status.DO_JUMP
 
     def update(self, direction, dt):
+
+        if self.game_start:
+            self.detect_accident()
+
         match self.state:
             case Status.STOP:
                 if direction:
@@ -256,12 +232,29 @@ class MazeWalkerController:
             case _:
                 self.state = Status.STOP
 
-    def is_walker_in_maze(self):
-        pos = self.walker.get_pos()
-        return self.maze_builder.is_in_maze(pos)
-
     def navigate(self, pos):
         return self.walker.root_np.get_relative_point(self.walker.direction_np, pos)
 
     def get_walker_pos(self):
         return self.walker.root_np.get_pos()
+
+
+    def detect_accident(self):
+        if self.world.contact_test_pair(
+                self.walker.character.node(), self.aircraft.aircraft.air_frame.node()).get_num_contacts() > 0:
+
+        # for con in self.world.contact_test_pair(
+        #         self.walker.character.node(), self.aircraft.aircraft.air_frame.node()).get_contacts():
+        #     print(con.getNode0(), con.getNode1())
+            
+            pt_first = self.walker.root_np.get_pos() + Vec3(0, 0, 3)
+            pt_second = self.aircraft.aircraft.direction_np.get_quat(base.render).get_forward() * 10
+
+            Sequence(
+                self.walker.root_np.posInterval(0.2, pt_first),
+                Parallel(
+                    ProjectileInterval(self.walker.root_np, duration=0.5, startPos=pt_first, endPos=pt_second, gravityMult=1.0),
+                    self.walker.direction_np.hprInterval(0.5, Vec3(360))
+                )
+            ).start()
+            

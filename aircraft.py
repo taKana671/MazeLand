@@ -1,7 +1,7 @@
 import random
 
 from panda3d.bullet import BulletRigidBodyNode, BulletSphereShape, BulletConvexHullShape
-from panda3d.core import NodePath, PandaNode
+from panda3d.core import NodePath
 from panda3d.core import TransformState, Vec3, BitMask32, Point3, LColor
 
 from create_geomnode import SphericalShape, RightTriangularPrism
@@ -13,7 +13,7 @@ class AirFrame(NodePath):
 
     def __init__(self):
         super().__init__(BulletRigidBodyNode('air_frame'))
-        self.set_collide_mask(BitMask32.bit(1))
+        self.set_collide_mask(BitMask32.bit(2))
         self.node().set_kinematic(True)
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
@@ -88,14 +88,6 @@ class Aircraft:
 
         for sensor in self.sensors:
             sensor.reparent_to(self.direction_np)
-        # self.sensors = [
-        #     Sensor(Direction.FORWARD, Vec3(0, 1.5, 0), self.world),
-        #     Sensor(Direction.LEFT, Vec3(-1.5, 0, 0), self.world),
-        #     Sensor(Direction.RIGHT, Vec3(1.5, 0, 0), self.world),
-        # ]
-
-        # for sensor in self.sensors:
-        #     sensor.reparent_to(self.direction_np)
 
     def draw_debug_lines(self):
         color = LColor(0, 0, 1, 1)
@@ -149,9 +141,9 @@ class AircraftController:
 
         self.aircraft = Aircraft(self.world)
         xy = self.maze_builder.get_entrance()
-        z = self.maze_builder.wall_wd.x * 2 - 0.5
-        self.aircraft.set_pos(Point3(xy, z - 10))
-
+        z = self.maze_builder.wall_size.z - 0.5
+        maze_z = self.maze_builder.get_maze_pos().z
+        self.aircraft.set_pos(Point3(xy, z + maze_z))
         self.state = Status.STOP
 
     def get_relative_pos(self, pos):
@@ -162,8 +154,8 @@ class AircraftController:
 
     def close_route(self):
         pos = self.aircraft.get_backward_pos(2.)
-        scale = Vec3(self.maze_builder.wall_wd.xy, 1)
-        mask = BitMask32.bit(1) | BitMask32.bit(2)
+        scale = Vec3(self.maze_builder.wall_size.xy, 1)
+        mask = BitMask32.bit(2)
         self.maze_builder.make_block('closed', pos, scale, mask, True)
 
     def change_direction(self):

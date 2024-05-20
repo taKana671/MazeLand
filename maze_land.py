@@ -120,7 +120,10 @@ class MazeLand(ShowBase):
         self.maze_builder = MazeBuilder(self.world, 21, 21)
         self.maze_builder.build()
 
-        self.walker_controller = MazeWalkerController(self.world, self.maze_builder)
+        self.aircraft_controller = AircraftController(self.world, self.maze_builder)
+        nd = self.aircraft_controller.aircraft.air_frame.node()
+        self.walker_controller = MazeWalkerController(
+            self.world, self.maze_builder, self.aircraft_controller)
 
         self.camLens.set_fov(90)
         self.camLens.set_near_far(0.5, 100000)
@@ -129,20 +132,9 @@ class MazeLand(ShowBase):
         self.camera_controller.setup_camera()
 
         # ############### aircraft part ############################
-        self.aircraft_controller = AircraftController(self.world, self.maze_builder)
-
-        # self.floater = NodePath('floater')
-        # self.floater.set_z(5)
-        # self.floater.reparent_to(self.aircraft_controller.aircraft.root_np)
-
         # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
         # self.camera.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
         # self.camera.look_at(self.aircraft_controller.aircraft.air_frame)
-        # # self.camera.look_at(self.floater)
-        # self.camLens.set_fov(90)
-
-        # self.camera.set_pos(0, 0, 1000)
-        # self.camera.look_at(0, 0, 0)
         # ###########################################
 
         self.ambient_light = BasicAmbientLight()
@@ -150,7 +142,7 @@ class MazeLand(ShowBase):
         self.day_light = BasicDayLight()
         self.day_light.reparent_to(self.render)
 
-        self.display_regions2()
+        self.create_display_regions()
         # self.split_screen()
 
         inputState.watch_with_modifiers('forward', 'arrow_up')
@@ -187,19 +179,18 @@ class MazeLand(ShowBase):
         camera.set_pos(pos)
         return camera
 
-    def display_regions2(self):
-        pass
-        # # region = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
+    def create_display_regions(self):
+        region = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
         # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        # region.set_sort(100)
-        # cam_np = NodePath(Camera('cam'))
-        # cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
-        # cam_np.node().get_lens().set_fov(90)
-        # region.set_camera(cam_np)
+        region.set_sort(100)
+        cam_np = NodePath(Camera('cam'))
+        cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
+        cam_np.node().get_lens().set_fov(90)
+        region.set_camera(cam_np)
 
-        # cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
-        # cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
+        cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
+        cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
+        cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
 
         # dr = self.win.make_display_region((0., 0.25, 0.75, 1))
         # dr.set_sort(20)
@@ -247,6 +238,7 @@ class MazeLand(ShowBase):
         self.camera.look_at(self.walker_controller.walker.character)
         walker_pos = self.walker_controller.get_walker_pos()
         print('walker_pos', walker_pos)
+        self.walker_controller.game_start = True
         # print('camera_pos', self.camera.get_pos(self.render))
         # print('backward_pos', self.walker_controller.navigate(Vec3(0, 2, 3)) + walker_pos)
         # print('camera reative pos', self.camera.get_pos())
@@ -272,6 +264,7 @@ class MazeLand(ShowBase):
 
     def update(self, task):
         dt = globalClock.get_dt()
+        self.aircraft_controller.update(dt)
         direction = self.get_key_input()
         self.walker_controller.update(direction, dt)
 
@@ -283,7 +276,6 @@ class MazeLand(ShowBase):
             case _:
                 self.camera_controller.update(dt)
 
-        # self.aircraft_controller.update(dt)
         self.world.do_physics(dt)
         return task.cont
 

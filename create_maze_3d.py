@@ -31,9 +31,9 @@ class Space(NamedTuple):
 
 class MazeBuilder:
 
-    def __init__(self, world, rows, cols, side=2):
+    def __init__(self, world, rows, cols):
         self.world = world
-        self.wall_wd = Point2(side)
+        self.wall_size = Vec3(2, 2, 4)
         self.rows = rows if rows % 2 != 0 else rows - 1
         self.cols = cols if cols % 2 != 0 else cols - 1
 
@@ -44,8 +44,11 @@ class MazeBuilder:
 
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(base.render)
-        self.np_walls.set_pos(0, 0, -12)  # -10 terrainの高さに合わせて配置するときは、droneの高さも設定しなおす
-        # self.np_walls.set_pos(0, 0, -10)
+        self.np_walls.set_pos(0, 0, -12)
+
+    def get_maze_pos(self):
+        child = self.np_walls.get_children()[0]
+        return child.get_pos()
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
@@ -54,8 +57,8 @@ class MazeBuilder:
         return self.space_to_cartesian(*self.exit)
 
     def space_to_cartesian(self, row, col):
-        x = (col - self.cols // 2) * self.wall_wd.x
-        y = (-row + self.rows // 2) * self.wall_wd.y
+        x = (col - self.cols // 2) * self.wall_size.x
+        y = (-row + self.rows // 2) * self.wall_size.y
         return Point2(x, y)
 
     def build(self):
@@ -69,10 +72,9 @@ class MazeBuilder:
         np_stone.reparent_to(self.np_walls)
 
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
-        brick_size = Vec3(self.wall_wd, self.wall_wd.x * 2)  # 3
-        stone_size = Vec3(self.wall_wd, 0.25)
-        brick_z = brick_size.z / 2
-        stone_z = brick_size.z + stone_size.z / 2
+        stone_size = Vec3(self.wall_size.xy, 0.25)
+        brick_z = self.wall_size.z / 2
+        stone_z = self.wall_size.z + stone_size.z / 2
 
         for r in range(self.rows):
             for c in range(self.cols):
@@ -81,20 +83,20 @@ class MazeBuilder:
 
                     match (r, c):
                         case self.entrance:
-                            mask = BitMask32.bit(1) | BitMask32.bit(2)
+                            mask = BitMask32.bit(2)
                             hide = True
                         case self.exit:
-                            mask = BitMask32.bit(1) | BitMask32.bit(3)
+                            mask = BitMask32.bit(3)
                             hide = True
                         case _:
-                            mask = BitMask32.bit(1) | BitMask32.bit(2) | BitMask32.bit(4)
+                            mask = BitMask32.bit(2) | BitMask32.bit(4)
                             hide = False
 
-                    self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), brick_size, mask, hide, np_brick)
+                    self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), self.wall_size, mask, hide, np_brick)
                     self.make_block(f'top_{r}_{c}', Point3(xy, stone_z), stone_size, mask, hide, np_stone)
 
-        su = (brick_size.x * 2 + brick_size.y * 2) / 4
-        sv = brick_size.z / 4
+        su = (self.wall_size.x * 2 + self.wall_size.y * 2) / 4
+        sv = self.wall_size.z / 4
         np_brick.set_tex_scale(TextureStage.get_default(), su, sv)
 
         np_brick.set_texture(tex_brick)
@@ -111,8 +113,3 @@ class MazeBuilder:
 
         if hide:
             block.hide()
-
-    def is_in_maze(self, pos):
-        if self.top_left.x < pos.x < self.bottom_right.x \
-                and self.bottom_right.y < pos.y < self.top_left.y:
-            return True
