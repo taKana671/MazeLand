@@ -86,7 +86,7 @@ class MazeBuilder:
                             mask = BitMask32.bit(2)
                             hide = True
                         case self.exit:
-                            mask = BitMask32.bit(3)
+                            mask = BitMask32.bit(3) | BitMask32.bit(4)
                             hide = True
                         case _:
                             mask = BitMask32.bit(2) | BitMask32.bit(4)
@@ -113,3 +113,14 @@ class MazeBuilder:
 
         if hide:
             block.hide()
+
+    def get_outside_pos(self, x, y):
+        pts = [
+            Point2(x, self.top_left.y + 2),
+            Point2(x, self.bottom_right.y - 2),
+            Point2(self.top_left.x - 2, y),
+            Point2(self.bottom_right.x, y)
+        ]
+        nearest_pt = min(pts, key=lambda pt: ((pt.x - x) ** 2 + (pt.y - y) ** 2) ** 0.5)
+        return nearest_pt
+

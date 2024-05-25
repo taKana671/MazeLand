@@ -138,19 +138,25 @@ class AircraftController:
         self.world = world
         self.maze_builder = maze_builder
         self.dead_end = None
+        self.stop = False
 
         self.aircraft = Aircraft(self.world)
         xy = self.maze_builder.get_entrance()
         z = self.maze_builder.wall_size.z - 0.5
         maze_z = self.maze_builder.get_maze_pos().z
         self.aircraft.set_pos(Point3(xy, z + maze_z))
-        self.state = Status.STOP
+        print('aircraft pos', Point3(xy, z + maze_z))
+        self.state = None
 
     def get_relative_pos(self, pos):
         """Return a relative point to enable camera to follow the character
            when the camera's view is blocked by an object like wall.
         """
         return self.aircraft.root_np.get_relative_point(self.aircraft.direction_np, pos)
+
+    @property
+    def aircraft_pos(self):
+        return self.aircraft.root_np.get_pos()
 
     def close_route(self):
         pos = self.aircraft.get_backward_pos(2.)
@@ -182,23 +188,24 @@ class AircraftController:
                 return Status.RIGHT_TURN
 
     def update(self, dt):
-        match self.state:
+        if not self.stop:
+            match self.state:
 
-            case Status.STOP:
-                self.state = self.change_direction()
+                case Status.STOP:
+                    self.state = self.change_direction()
 
-            case Status.MOVE:
-                if self.aircraft.move_forward(2, dt):
-                    self.state = Status.STOP
+                case Status.MOVE:
+                    if self.aircraft.move_forward(2, dt):
+                        self.state = Status.STOP
 
-            case Status.LEFT_TURN:
-                if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt):
-                    self.state = Status.MOVE
+                case Status.LEFT_TURN:
+                    if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt):
+                        self.state = Status.MOVE
 
-            case Status.RIGHT_TURN:
-                if self.aircraft.turn(Direction.RIGHTWARD.get_direction(), dt):
-                    self.state = Status.MOVE
+                case Status.RIGHT_TURN:
+                    if self.aircraft.turn(Direction.RIGHTWARD.get_direction(), dt):
+                        self.state = Status.MOVE
 
-            case Status.U_TURN:
-                if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt, 180):
-                    self.state = Status.MOVE
+                case Status.U_TURN:
+                    if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt, 180):
+                        self.state = Status.MOVE

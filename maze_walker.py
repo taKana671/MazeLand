@@ -1,4 +1,5 @@
 import math
+import random
 from collections import deque
 from typing import NamedTuple
 
@@ -8,7 +9,7 @@ from panda3d.bullet import BulletRigidBodyNode
 from panda3d.core import PandaNode, NodePath, TransformState
 from panda3d.core import Vec3, Point3, BitMask32, Point2, Quat, LColor
 
-from direct.interval.IntervalGlobal import ProjectileInterval, Parallel, Sequence
+from direct.interval.IntervalGlobal import ProjectileInterval, Parallel, Sequence, Func
 
 from create_maze_3d import Space
 from basic_character import Sensor, Direction, Status
@@ -58,22 +59,17 @@ class MazeWalker:
         self.angular_velocity = 200
         self.max_acceleration = 15
         self.character_z = 0.5
-        self.total_angle = 0
-        self.total_dt = 0
+
+        self.total = 0
         self.acceleration = 0
 
-        self.create_sensors()
+        self.sensors = [sensor for sensor in self.create_sensors()]
 
     def create_sensors(self):
-        self.sensors = [
-            Sensor(self.world, Direction.FORWARD, -1),
-            Sensor(self.world, Direction.BACKWARD, -1),
-            Sensor(self.world, Direction.LEFTWARD, -1),
-            Sensor(self.world, Direction.RIGHTWARD, -1),
-        ]
-
-        for sensor in self.sensors:
+        for direction in Direction.around():
+            sensor = Sensor(self.world, direction, -1)
             sensor.reparent_to(self.direction_np)
+            yield sensor
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -92,17 +88,16 @@ class MazeWalker:
         mid_pt.z += 1
 
         self.passing_pts = PassingPoints(start_pt, mid_pt, end_pt)
-        self.total_dt = 0
 
     def bernstein(self, n, k):
         coef = math.factorial(n) / (math.factorial(k) * math.factorial(n - k))
-        return coef * self.total_dt ** k * (1 - self.total_dt) ** (n - k)
+        return coef * self.total ** k * (1 - self.total) ** (n - k)
 
     def bezier_curve(self, dt):
-        self.total_dt += dt
+        self.total += dt
 
-        if self.total_dt > 1:
-            self.total_dt = 1
+        if self.total > 1:
+            self.total = 1
 
         n = len(self.passing_pts) - 1
         px = py = pz = 0
@@ -122,12 +117,12 @@ class MazeWalker:
                 if not sensor.detect_obstacles(pos_from, bit=4):
                     return True
 
-    def cast_ray_downward(self, pos, bit=1):
-        pos_from = pos + Vec3(0, 0, 3)
-        pos_to = pos + Vec3(0, 0, -10)
-
+    def cast_ray_downward(self, pos, from_delta=3, to_delta=-10, mask=BitMask32.bit(1)):
+        pos_from = pos + Vec3(0, 0, from_delta)
+        pos_to = pos + Vec3(0, 0, to_delta)
+        # print('cast_ray_downward', pos_from, pos_to)
         if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
+                pos_from, pos_to, mask=mask)).has_hit():
             return result
 
         return None
@@ -135,20 +130,21 @@ class MazeWalker:
     def turn(self, rotate_direction, dt, max_angle=90):
         angle = self.angular_velocity * dt
 
-        if (total := self.total_angle + angle) >= max_angle:
-            diff = max_angle - self.total_angle
+        if (total := self.total + angle) >= max_angle:
+            diff = max_angle - self.total
             self.direction_np.set_h(self.direction_np.get_h() + diff * rotate_direction)
-            self.total_angle = 0
+            self.total = 0
             return True
 
-        self.total_angle = total
+        self.total = total
         self.direction_np.set_h(self.direction_np.get_h() + angle * rotate_direction)
 
     def move(self, dt):
         next_pt = self.bezier_curve(dt)
         self.set_pos(next_pt)
 
-        if self.total_dt == 1:
+        if self.total == 1:
+            self.total = 0
             self.set_pos(self.passing_pts.end)
             return True
 
@@ -163,23 +159,46 @@ class MazeWalker:
         self.root_np.set_z(self.root_np.get_z() + next_z)
         self.acceleration -= 0.98 * 0.25
 
+    def start_projectile(self, aircraft_pos):
+        current_pos = self.root_np.get_pos()
+        result = self.cast_ray_downward(current_pos)
+        end_z = result.get_hit_pos().z
+        way_pt = current_pos + Vec3(0, 0, 3)
+
+        ProjectileInterval.gravity = 9.81 / 4
+
+        self.projectile_seq = Parallel(
+            self.direction_np.hprInterval(3, Vec3(360, 270, 270)),
+            ProjectileInterval(
+                self.root_np,
+                startPos=current_pos,
+                wayPoint=way_pt,
+                timeToWayPoint=1,
+                endZ=end_z,
+                gravityMult=0.5
+            )
+        )
+        self.projectile_seq.start()
+
 
 class MazeWalkerController:
 
-    def __init__(self, world, maze_builder, aircraft):
+    def __init__(self, world, maze_builder, walker_q):
         self.world = world
         self.maze_builder = maze_builder
         self.walker = MazeWalker(self.world, maze_builder.wall_size.x)
-        self.aircraft = aircraft
+        self.trace_q = walker_q
 
         self.orient = -1
         xy = self.maze_builder.get_exit()
         print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
+        # self.walker.set_pos(Point3(18, -18, -9))
         self.state = Status.STOP
-        self.game_start = False
 
-        self.trace_q = deque()
+    @property
+    def walker_pos(self):
+        return self.walker.root_np.get_pos()
 
     def change_direction(self, direction):
 
@@ -204,10 +223,6 @@ class MazeWalkerController:
                 return Status.DO_JUMP
 
     def update(self, direction, dt):
-
-        if self.game_start:
-            self.detect_accident()
-
         match self.state:
             case Status.STOP:
                 if direction:
@@ -229,32 +244,19 @@ class MazeWalkerController:
                 if self.walker.jump(dt):
                     self.state = Status.STOP
 
+            case Status.CRASH:
+                if not self.walker.projectile_seq.is_playing():
+                    self.state = Status.FINISH
+
             case _:
                 self.state = Status.STOP
+
+        return self.walker.root_np.get_pos()
 
     def navigate(self, pos):
         return self.walker.root_np.get_relative_point(self.walker.direction_np, pos)
 
-    def get_walker_pos(self):
-        return self.walker.root_np.get_pos()
-
-
-    def detect_accident(self):
-        if self.world.contact_test_pair(
-                self.walker.character.node(), self.aircraft.aircraft.air_frame.node()).get_num_contacts() > 0:
-
-        # for con in self.world.contact_test_pair(
-        #         self.walker.character.node(), self.aircraft.aircraft.air_frame.node()).get_contacts():
-        #     print(con.getNode0(), con.getNode1())
-            
-            pt_first = self.walker.root_np.get_pos() + Vec3(0, 0, 3)
-            pt_second = self.aircraft.aircraft.direction_np.get_quat(base.render).get_forward() * 10
-
-            Sequence(
-                self.walker.root_np.posInterval(0.2, pt_first),
-                Parallel(
-                    ProjectileInterval(self.walker.root_np, duration=0.5, startPos=pt_first, endPos=pt_second, gravityMult=1.0),
-                    self.walker.direction_np.hprInterval(0.5, Vec3(360))
-                )
-            ).start()
-            
+    def crash(self, aircraft_pos):
+        if self.state != Status.CRASH:
+            self.state = Status.CRASH
+            self.walker.start_projectile(aircraft_pos)

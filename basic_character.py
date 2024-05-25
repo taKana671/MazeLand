@@ -15,6 +15,10 @@ class Status(Enum):
     GO_BACK = auto()
     GO_FORWARD = auto()
     DO_JUMP = auto()
+    PLAY = auto()
+    WAIT = auto()
+    CRASH = auto()
+    FINISH = auto()
 
 
 class Direction(Enum):
@@ -42,7 +46,7 @@ class Direction(Enum):
     def around(cls):
         for direction in cls:
             if direction not in [cls.UPWARD, cls.DOWNWARD]:
-                yield Vec3(direction.value)
+                yield direction
 
 
 class Sensor(NodePath):

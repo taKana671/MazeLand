@@ -31,50 +31,51 @@ load_prc_file_data("", """
 
 class CameraController:
 
-    def __init__(self, camera, walker_controller):
+    def __init__(self, camera, walker_q, floater_parent):
         self.camera = camera
-        self.walker_controller = walker_controller
+        self.walker_q = walker_q
+        self.before_walker_pos = None
 
         self.floater = NodePath('floater')
-        self.floater.set_z(0.5)   # 3
-        self.floater.reparent_to(self.walker_controller.walker.root_np)
+        self.floater.set_z(1)   # 3
+        self.floater.reparent_to(floater_parent)
 
         self.state = Status.STOP
         self.total_distance = 0
         self.trace_q = deque()
 
-    @property
-    def camera_z(self):
-        return self.walker_controller.get_walker_pos().z + 1
+    def get_camera_z(self, walker_pos):
+        return walker_pos.z + 1
 
-    def setup_camera(self):
-        walker_pos = self.walker_controller.get_walker_pos()
-        pos = self.walker_controller.navigate(Point3(0, 2.0, 1)) + walker_pos
+    def setup_camera(self, pos):
         self.trace_q.append(pos.xy)
         self.camera.set_pos(pos)
         self.camera.look_at(self.floater)
 
-    def change_z(self):
-        self.camera.set_z(self.camera_z)
+    def change_z(self, walker_pos):
+        if self.before_walker_pos != walker_pos:
+            z = self.get_camera_z(walker_pos)
+            self.camera.set_z(z)
 
-    def move(self, dt, max_distance=2):
+    def move(self, dt, walker_pos, max_distance=2):
         distance = dt * 2
         camera_xy = self.camera.get_pos().xy
+        camera_z = self.get_camera_z(walker_pos)
 
         if (total := self.total_distance + distance) >= max_distance:
             diff = max_distance - self.total_distance
-            pos = Point3(camera_xy + self.direction_xy * diff, self.camera_z)
+            pos = Point3(camera_xy + self.direction_xy * diff, camera_z)
             self.camera.set_pos(pos)
             self.total_distance = 0
             return True
 
-        pos = Point3(camera_xy + self.direction_xy * distance, self.camera_z)
+        pos = Point3(camera_xy + self.direction_xy * distance, camera_z)
         self.camera.set_pos(pos)
         self.total_distance = total
 
     def find_next_position(self):
         try:
-            passing_pts = self.walker_controller.trace_q.popleft()
+            passing_pts = self.walker_q.popleft()
 
             if len(self.trace_q) > 0:
                 # turn back
@@ -91,7 +92,7 @@ class CameraController:
         except IndexError:
             pass
 
-    def update(self, dt):
+    def follow(self, dt, walker_pos):
         match self.state:
 
             case Status.STOP:
@@ -99,12 +100,25 @@ class CameraController:
                     self.state = Status.MOVE
 
             case Status.MOVE:
-                if self.move(dt):
+                if self.move(dt, walker_pos):
                     self.state = Status.STOP
                 self.camera.look_at(self.floater)
 
+    def update(self, dt, walker_pos, walker_state):
 
-class MazeLand(ShowBase):
+        match walker_state:
+
+            case Status.DO_JUMP:
+                self.change_z(walker_pos)
+
+            case Status.CRASH:
+                self.camera.look_at(self.floater)
+
+            case _:
+                self.follow(dt, walker_pos)
+
+
+class MazeLand(ShowBase):  
 
     def __init__(self):
         super().__init__()
@@ -121,15 +135,20 @@ class MazeLand(ShowBase):
         self.maze_builder.build()
 
         self.aircraft_controller = AircraftController(self.world, self.maze_builder)
-        nd = self.aircraft_controller.aircraft.air_frame.node()
-        self.walker_controller = MazeWalkerController(
-            self.world, self.maze_builder, self.aircraft_controller)
+
+        walker_q = deque()
+        self.walker_controller = MazeWalkerController(self.world, self.maze_builder, walker_q)
 
         self.camLens.set_fov(90)
         self.camLens.set_near_far(0.5, 100000)
         self.camera.reparent_to(self.render)
-        self.camera_controller = CameraController(self.camera, self.walker_controller)
-        self.camera_controller.setup_camera()
+        # self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.root_np)
+        self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.character)
+
+        camera_pos = self.walker_controller.navigate(Point3(0, 2.0, 1)) + self.walker_controller.walker_pos
+        self.camera_controller.setup_camera(camera_pos)
+
+        self.state = None
 
         # ############### aircraft part ############################
         # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
@@ -235,10 +254,12 @@ class MazeLand(ShowBase):
             self.debug.hide()
 
     def print_info(self):
-        self.camera.look_at(self.walker_controller.walker.character)
-        walker_pos = self.walker_controller.get_walker_pos()
-        print('walker_pos', walker_pos)
-        self.walker_controller.game_start = True
+        self.state = Status.PLAY
+        self.aircraft_controller.state = Status.STOP
+
+        # self.camera.look_at(self.walker_controller.walker.character)
+        print('walker_pos', self.walker_controller.walker_pos)
+
         # print('camera_pos', self.camera.get_pos(self.render))
         # print('backward_pos', self.walker_controller.navigate(Vec3(0, 2, 3)) + walker_pos)
         # print('camera reative pos', self.camera.get_pos())
@@ -262,19 +283,32 @@ class MazeLand(ShowBase):
 
         return direction
 
+    def detect_accident(self):
+        walker_nd = self.walker_controller.walker.character.node()
+        aircraft_nd = self.aircraft_controller.aircraft.air_frame.node()
+
+        if (result := self.world.contact_test_pair(
+                walker_nd, aircraft_nd)).get_num_contacts() > 0:
+            return result
+
     def update(self, task):
         dt = globalClock.get_dt()
         self.aircraft_controller.update(dt)
         direction = self.get_key_input()
-        self.walker_controller.update(direction, dt)
+        walker_pos = self.walker_controller.update(direction, dt)
+        self.camera_controller.update(dt, walker_pos, self.walker_controller.state)
 
-        match self.walker_controller.state:
+        match self.state:
 
-            case Status.DO_JUMP:
-                self.camera_controller.change_z()
+            case Status.PLAY:
+                if self.detect_accident():
+                    self.walker_controller.crash(self.aircraft_controller.aircraft_pos)
+                    self.aircraft_controller.stop = True
+                    self.state = Status.WAIT
 
-            case _:
-                self.camera_controller.update(dt)
+            case Status.WAIT:
+                if not self.detect_accident():
+                    self.aircraft_controller.stop = False
 
         self.world.do_physics(dt)
         return task.cont
