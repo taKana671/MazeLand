@@ -31,7 +31,7 @@ class Space(NamedTuple):
 
 class MazeBuilder:
 
-    def __init__(self, world, rows, cols):
+    def __init__(self, world, parent, rows, cols):
         self.world = world
         self.wall_size = Vec3(2, 2, 4)
         self.rows = rows if rows % 2 != 0 else rows - 1
@@ -43,7 +43,7 @@ class MazeBuilder:
         self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
 
         self.np_walls = NodePath('walls')
-        self.np_walls.reparent_to(base.render)
+        self.np_walls.reparent_to(parent)
         self.np_walls.set_pos(0, 0, -12)
 
     def get_maze_pos(self):

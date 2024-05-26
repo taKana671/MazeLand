@@ -253,7 +253,7 @@ class SphericalShape(GeomRoot):
         return vertex_count
 
 
-@singleton
+# @singleton
 class Cylinder(GeomRoot):
     """Create a geom node of cylinder.
        Args:

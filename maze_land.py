@@ -12,12 +12,12 @@ from direct.showbase.InputStateGlobal import inputState
 from panda3d.core import load_prc_file_data, TransformState
 from panda3d.core import Camera, OrthographicLens
 
-from create_maze_3d import MazeBuilder, Space
 from lights import BasicAmbientLight, BasicDayLight
 from scene import Scene
 from aircraft import AircraftController
 from maze_walker import MazeWalkerController
 from basic_character import Direction, Status
+from screen import Screen
 
 
 load_prc_file_data("", """
@@ -131,17 +131,14 @@ class MazeLand(ShowBase):
 
         self.scene = Scene(self.world)
 
-        self.maze_builder = MazeBuilder(self.world, 21, 21)
-        self.maze_builder.build()
-
-        self.aircraft_controller = AircraftController(self.world, self.maze_builder)
-
+        self.aircraft_controller = AircraftController(self.world, self.scene.maze)
         walker_q = deque()
-        self.walker_controller = MazeWalkerController(self.world, self.maze_builder, walker_q)
+        self.walker_controller = MazeWalkerController(self.world, self.scene.maze, walker_q)
 
         self.camLens.set_fov(90)
         self.camLens.set_near_far(0.5, 100000)
         self.camera.reparent_to(self.render)
+        # import pdb; pdb.set_trace()
         # self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.root_np)
         self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.character)
 
@@ -149,6 +146,7 @@ class MazeLand(ShowBase):
         self.camera_controller.setup_camera(camera_pos)
 
         self.state = None
+
 
         # ############### aircraft part ############################
         # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
@@ -163,6 +161,8 @@ class MazeLand(ShowBase):
 
         self.create_display_regions()
         # self.split_screen()
+        
+        screen = Screen()
 
         inputState.watch_with_modifiers('forward', 'arrow_up')
         inputState.watch_with_modifiers('backward', 'arrow_down')
@@ -201,7 +201,7 @@ class MazeLand(ShowBase):
     def create_display_regions(self):
         region = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
         # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        region.set_sort(100)
+        region.set_sort(0)
         cam_np = NodePath(Camera('cam'))
         cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
         cam_np.node().get_lens().set_fov(90)
@@ -211,6 +211,12 @@ class MazeLand(ShowBase):
         cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
         cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
 
+
+        main_region = self.win.get_display_region(0)
+        main_region.set_sort(1)
+
+
+        ## region.set_active(False)
         # dr = self.win.make_display_region((0., 0.25, 0.75, 1))
         # dr.set_sort(20)
         # cam_np2 = NodePath(Camera('cam2'))

@@ -191,7 +191,7 @@ class MazeWalkerController:
 
         self.orient = -1
         xy = self.maze_builder.get_exit()
-        print('walker start pos', Point3(xy, -5))
+        # print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
         # self.walker.set_pos(Point3(18, -18, -9))
         self.state = Status.STOP
