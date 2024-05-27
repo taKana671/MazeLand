@@ -1,7 +1,7 @@
 from typing import NamedTuple
 from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape, BulletConvexHullShape
 from panda3d.core import NodePath, TextureStage
-from panda3d.core import Vec3, Point3, BitMask32, Point2
+from panda3d.core import Vec3, Point3, BitMask32, Point2, Vec2
 
 from create_maze_2d import WallExtendingAlgorithm
 from create_geomnode import Cube
@@ -41,7 +41,6 @@ class MazeBuilder:
         self.exit = Space(0, 1)
         self.top_left = self.space_to_cartesian(0, 0)
         self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
-
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(parent)
         self.np_walls.set_pos(0, 0, -12)
@@ -87,6 +86,7 @@ class MazeBuilder:
                             hide = True
                         case self.exit:
                             mask = BitMask32.bit(3) | BitMask32.bit(4)
+                            xy += Vec2(0, self.wall_size.y)
                             hide = True
                         case _:
                             mask = BitMask32.bit(2) | BitMask32.bit(4)
@@ -114,13 +114,9 @@ class MazeBuilder:
         if hide:
             block.hide()
 
-    def get_outside_pos(self, x, y):
-        pts = [
-            Point2(x, self.top_left.y + 2),
-            Point2(x, self.bottom_right.y - 2),
-            Point2(self.top_left.x - 2, y),
-            Point2(self.bottom_right.x, y)
-        ]
-        nearest_pt = min(pts, key=lambda pt: ((pt.x - x) ** 2 + (pt.y - y) ** 2) ** 0.5)
-        return nearest_pt
+    def is_outside(self, pt2):
+        upper = self.top_left.y + self.wall_size.y / 2
+        lower = self.bottom_right.y - self.wall_size.y / 2
 
+        if pt2.y < lower or pt2.y > upper:
+            return True

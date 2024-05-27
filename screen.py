@@ -6,6 +6,13 @@ from panda3d.core import CardMaker, LColor
 from direct.interval.IntervalGlobal import Sequence, Func
 
 
+class Frame(DirectFrame):
+
+    def __init__(self, parent):
+        super().__init__(parent=parent)
+        self.initialiseoptions(type(self))
+
+
 class Label(DirectLabel):
 
     def __init__(self, frame, text, pos, font, text_scale=0.2):
@@ -34,24 +41,44 @@ class Button(DirectButton):
             text_scale=text_scale,
             text_font=font,
             text_pos=(0, -0.04),
-            # command=command
+            command=command
         )
         self.initialiseoptions(type(self))
 
 
-
 class Screen:
 
-    def __init__(self):
+    def __init__(self, frame):
+        self.frame = frame
+        self.color_in = LColor(0, 0, 0, 0.9)
+        self.color_out = LColor(0, 0, 0, 0)
+        self.create_screen()
+
+    def create_screen(self):
         cm = CardMaker('card')
         cm.set_frame_fullscreen_quad()
         self.background = base.render2d.attach_new_node(cm.generate())
         self.background.set_transparency(1)
-        self.background.set_color(LColor(0, 0, 0, 0.9))
+        self.background.set_color(self.color_in)
 
-        font = base.loader.loadFont('font/Candaral.ttf')
-        self.frame = DirectFrame(base.aspect2d)
+    def fade_out(self, callback, *args, **kwargs):
+        Sequence(
+            Func(self.frame.hide),
+            self.background.colorInterval(1.0, self.color_out),
+            Func(callback, *args, **kwargs)
+        ).start()
 
-        Label(self.frame, 'Maze Land', (0, 0, 0.3), font)
-        Button(self.frame, 'START', (0, 0, 0), font)
+    def fade_in(self, callback, *args, **kwargs):
+        Sequence(
+            self.background.colorInterval(1.0, self.color_in),
+            Func(self.gui.show),
+            Func(callback, *args, **kwargs)
+        ).start()
+
+    def hide(self):
+        self.frame.hide()
+        self.background.hide()
+
+    def show(self):
         self.frame.show()
+        self.background.show()

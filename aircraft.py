@@ -136,14 +136,14 @@ class AircraftController:
 
     def __init__(self, world, maze_builder):
         self.world = world
-        self.maze_builder = maze_builder
+        self.maze = maze_builder
         self.dead_end = None
         self.stop = False
 
         self.aircraft = Aircraft(self.world)
-        xy = self.maze_builder.get_entrance()
-        z = self.maze_builder.wall_size.z - 0.5
-        maze_z = self.maze_builder.get_maze_pos().z
+        xy = self.maze.get_entrance()
+        z = self.maze.wall_size.z - 0.5
+        maze_z = self.maze.get_maze_pos().z
         self.aircraft.set_pos(Point3(xy, z + maze_z))
         print('aircraft pos', Point3(xy, z + maze_z))
         self.state = None
@@ -160,9 +160,9 @@ class AircraftController:
 
     def close_route(self):
         pos = self.aircraft.get_backward_pos(2.)
-        scale = Vec3(self.maze_builder.wall_size.xy, 1)
+        scale = Vec3(self.maze.wall_size.xy, 1)
         mask = BitMask32.bit(2)
-        self.maze_builder.make_block('closed', pos, scale, mask, True)
+        self.maze.make_block('closed', pos, scale, mask, True)
 
     def change_direction(self):
         if not (directions := [d for d in self.aircraft.detect_route()]):
@@ -196,7 +196,11 @@ class AircraftController:
 
                 case Status.MOVE:
                     if self.aircraft.move_forward(2, dt):
-                        self.state = Status.STOP
+                        if self.maze.is_outside(self.aircraft_pos.xy):
+                            print('finish')
+                            self.state = Status.FINISH
+                        else:
+                            self.state = Status.STOP
 
                 case Status.LEFT_TURN:
                     if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt):
@@ -209,3 +213,6 @@ class AircraftController:
                 case Status.U_TURN:
                     if self.aircraft.turn(Direction.LEFTWARD.get_direction(), dt, 180):
                         self.state = Status.MOVE
+
+    def start(self):
+        self.state = Status.STOP

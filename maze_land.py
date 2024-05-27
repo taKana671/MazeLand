@@ -17,7 +17,7 @@ from scene import Scene
 from aircraft import AircraftController
 from maze_walker import MazeWalkerController
 from basic_character import Direction, Status
-from screen import Screen
+from screen import Screen, Button, Frame, Label
 
 
 load_prc_file_data("", """
@@ -138,16 +138,13 @@ class MazeLand(ShowBase):
         self.camLens.set_fov(90)
         self.camLens.set_near_far(0.5, 100000)
         self.camera.reparent_to(self.render)
-        # import pdb; pdb.set_trace()
-        # self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.root_np)
         self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.character)
 
         camera_pos = self.walker_controller.navigate(Point3(0, 2.0, 1)) + self.walker_controller.walker_pos
         self.camera_controller.setup_camera(camera_pos)
 
         self.state = None
-
-
+ 
         # ############### aircraft part ############################
         # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
         # self.camera.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
@@ -161,8 +158,7 @@ class MazeLand(ShowBase):
 
         self.create_display_regions()
         # self.split_screen()
-        
-        screen = Screen()
+        self.create_gui()
 
         inputState.watch_with_modifiers('forward', 'arrow_up')
         inputState.watch_with_modifiers('backward', 'arrow_down')
@@ -174,6 +170,22 @@ class MazeLand(ShowBase):
         self.accept('d', self.toggle_debug)
         self.accept('p', self.print_info)
         self.taskMgr.add(self.update, 'update')
+
+    def create_gui(self):
+        font = self.loader.loadFont('font/Candaral.ttf')
+        frame = Frame(self.aspect2d)
+        self.screen = Screen(frame)
+
+        Label(frame, 'Maze Land', (0, 0, 0.3), font)
+        Button(frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game))
+        self.screen.show()
+
+    def start_game(self):
+        self.walker_controller.start()
+        self.aircraft_controller.start()
+        # self.region_l.set_active(True)
+        self.region_l.set_sort(100)
+        self.state = Status.PLAY
 
     def split_screen(self):
         pos = self.aircraft_controller.get_relative_pos(Point3(0, -2, 5))  # 5
@@ -199,24 +211,25 @@ class MazeLand(ShowBase):
         return camera
 
     def create_display_regions(self):
-        region = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
+        self.region_l = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
         # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        region.set_sort(0)
+        # self.region_l.set_sort(100)
+        self.region_l.set_sort(1)
         cam_np = NodePath(Camera('cam'))
         cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
         cam_np.node().get_lens().set_fov(90)
-        region.set_camera(cam_np)
+        self.region_l.set_camera(cam_np)
 
         cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
         cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
         cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
+        # self.region_l.set_active(False)
 
 
-        main_region = self.win.get_display_region(0)
-        main_region.set_sort(1)
+        # main_region = self.win.get_display_region(0)
+        # main_region.set_sort(0)
 
 
-        ## region.set_active(False)
         # dr = self.win.make_display_region((0., 0.25, 0.75, 1))
         # dr.set_sort(20)
         # cam_np2 = NodePath(Camera('cam2'))

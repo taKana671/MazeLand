@@ -185,23 +185,22 @@ class MazeWalkerController:
 
     def __init__(self, world, maze_builder, walker_q):
         self.world = world
-        self.maze_builder = maze_builder
-        self.walker = MazeWalker(self.world, maze_builder.wall_size.x)
+        self.maze = maze_builder
+        self.walker = MazeWalker(self.world, self.maze.wall_size.x)
         self.trace_q = walker_q
 
         self.orient = -1
-        xy = self.maze_builder.get_exit()
+        xy = self.maze.get_exit()
         # print('walker start pos', Point3(xy, -5))
         self.walker.set_pos(Point3(xy, -8.5))
         # self.walker.set_pos(Point3(18, -18, -9))
-        self.state = Status.STOP
+        self.state = None
 
     @property
     def walker_pos(self):
         return self.walker.root_np.get_pos()
 
     def change_direction(self, direction):
-
         match direction:
 
             case Direction.FORWARD | Direction.BACKWARD:
@@ -222,11 +221,14 @@ class MazeWalkerController:
                 self.walker.acceleration = self.walker.max_acceleration
                 return Status.DO_JUMP
 
+            case _:
+                return None
+
     def update(self, direction, dt):
         match self.state:
             case Status.STOP:
-                if direction:
-                    self.state = self.change_direction(direction)
+                if status := self.change_direction(direction):
+                    self.state = status
 
             case Status.LEFT_TURN:
                 if self.walker.turn(Direction.LEFTWARD.get_direction(self.orient), dt):
@@ -238,7 +240,11 @@ class MazeWalkerController:
 
             case Status.MOVE:
                 if self.walker.move(dt):
-                    self.state = Status.STOP
+                    if self.maze.is_outside(self.walker_pos.xy):
+                        print('finish')
+                        self.state = Status.FINISH
+                    else:
+                        self.state = Status.STOP
 
             case Status.DO_JUMP:
                 if self.walker.jump(dt):
@@ -247,9 +253,6 @@ class MazeWalkerController:
             case Status.CRASH:
                 if not self.walker.projectile_seq.is_playing():
                     self.state = Status.FINISH
-
-            case _:
-                self.state = Status.STOP
 
         return self.walker.root_np.get_pos()
 
@@ -260,3 +263,6 @@ class MazeWalkerController:
         if self.state != Status.CRASH:
             self.state = Status.CRASH
             self.walker.start_projectile(aircraft_pos)
+
+    def start(self):
+        self.state = Status.STOP
