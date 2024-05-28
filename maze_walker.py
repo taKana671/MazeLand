@@ -241,8 +241,7 @@ class MazeWalkerController:
             case Status.MOVE:
                 if self.walker.move(dt):
                     if self.maze.is_outside(self.walker_pos.xy):
-                        print('finish')
-                        self.state = Status.FINISH
+                        self.finish()
                     else:
                         self.state = Status.STOP
 
@@ -252,9 +251,7 @@ class MazeWalkerController:
 
             case Status.CRASH:
                 if not self.walker.projectile_seq.is_playing():
-                    self.state = Status.FINISH
-
-        return self.walker.root_np.get_pos()
+                    self.finish()
 
     def navigate(self, pos):
         return self.walker.root_np.get_relative_point(self.walker.direction_np, pos)
@@ -266,3 +263,7 @@ class MazeWalkerController:
 
     def start(self):
         self.state = Status.STOP
+
+    def finish(self):
+        self.state = Status.FINISH
+        base.messenger.send('finish')

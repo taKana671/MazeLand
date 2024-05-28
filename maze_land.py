@@ -169,6 +169,7 @@ class MazeLand(ShowBase):
         self.accept('escape', sys.exit)
         self.accept('d', self.toggle_debug)
         self.accept('p', self.print_info)
+        self.accept('finish', self.finish)
         self.taskMgr.add(self.update, 'update')
 
     def create_gui(self):
@@ -179,6 +180,22 @@ class MazeLand(ShowBase):
         Label(frame, 'Maze Land', (0, 0, 0.3), font)
         Button(frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game))
         self.screen.show()
+
+    def finish(self):
+        self.state = None
+        self.walker_controller.state = None
+        self.aircraft_controller.state = None
+
+        self.taskMgr.do_method_later(
+            1,
+            self.screen.fade_in,
+            'finish_game',
+            extraArgs=[self.gameover]
+        )
+
+    def gameover(self):
+        # needs to change n passed to resion.set_sort().
+        print('gameover')
 
     def start_game(self):
         self.walker_controller.start()
@@ -314,8 +331,10 @@ class MazeLand(ShowBase):
         dt = globalClock.get_dt()
         self.aircraft_controller.update(dt)
         direction = self.get_key_input()
-        walker_pos = self.walker_controller.update(direction, dt)
-        self.camera_controller.update(dt, walker_pos, self.walker_controller.state)
+        self.walker_controller.update(direction, dt)
+
+        self.camera_controller.update(
+            dt, self.walker_controller.walker_pos, self.walker_controller.state)
 
         match self.state:
 

@@ -197,8 +197,8 @@ class AircraftController:
                 case Status.MOVE:
                     if self.aircraft.move_forward(2, dt):
                         if self.maze.is_outside(self.aircraft_pos.xy):
-                            print('finish')
                             self.state = Status.FINISH
+                            base.messenger.send('finish')
                         else:
                             self.state = Status.STOP
 

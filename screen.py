@@ -71,7 +71,7 @@ class Screen:
     def fade_in(self, callback, *args, **kwargs):
         Sequence(
             self.background.colorInterval(1.0, self.color_in),
-            Func(self.gui.show),
+            Func(self.frame.show),
             Func(callback, *args, **kwargs)
         ).start()
 
