@@ -11,6 +11,7 @@ class Frame(DirectFrame):
     def __init__(self, parent):
         super().__init__(parent=parent)
         self.initialiseoptions(type(self))
+        self.buttons = []
 
 
 class Label(DirectLabel):
@@ -30,7 +31,7 @@ class Label(DirectLabel):
 
 class Button(DirectButton):
 
-    def __init__(self, frame, text, pos, font, command=None, text_scale=0.12):
+    def __init__(self, frame, text, pos, font, command=None, text_scale=0.12, focus=False):
         super().__init__(
             parent=frame,
             relief=None,
@@ -43,7 +44,40 @@ class Button(DirectButton):
             text_pos=(0, -0.04),
             command=command
         )
+        self.frame = frame
         self.initialiseoptions(type(self))
+
+        self.focus_color = (1, 1, 1, 1)
+        self.blur_color = (1, 1, 1, 0.5)
+        self.is_focus = True
+        self.frame.buttons.append(self)
+
+        if not focus:
+            self.blur()
+
+        self.bind(DGG.ENTER, self.roll_over)
+        self.bind(DGG.EXIT, self.roll_out)
+
+    def roll_over(self, param=None):
+        self.focus()
+
+        for btn in self.frame.buttons:
+            if btn != self and btn.is_focus:
+                btn.blur()
+                break
+
+    def roll_out(self, param=None):
+        if all(not btn.is_focus for btn in self.frame.buttons if btn != self):
+            return
+        self.blur()
+
+    def focus(self):
+        self.is_focus = True
+        self.colorScaleInterval(0.05, self.focus_color, blendType='easeInOut').start()
+
+    def blur(self):
+        self.is_focus = False
+        self.colorScaleInterval(0.05, self.blur_color, blendType='easeInOut').start()
 
 
 class Screen:

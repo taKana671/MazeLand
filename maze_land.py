@@ -166,7 +166,7 @@ class MazeLand(ShowBase):
         inputState.watch_with_modifiers('right', 'arrow_right')
         inputState.watch_with_modifiers('jump', 'enter')
 
-        self.accept('escape', sys.exit)
+        # self.accept('escape', sys.exit)
         self.accept('d', self.toggle_debug)
         self.accept('p', self.print_info)
         self.accept('finish', self.finish)
@@ -178,26 +178,19 @@ class MazeLand(ShowBase):
         self.screen = Screen(frame)
 
         Label(frame, 'Maze Land', (0, 0, 0.3), font)
-        Button(frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game))
+        Button(frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game), focus=True)
+        Button(frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+
         self.screen.show()
 
     def finish(self):
         self.state = None
         self.walker_controller.state = None
         self.aircraft_controller.state = None
-
-        self.taskMgr.do_method_later(
-            1,
-            self.screen.fade_in,
-            'finish_game',
-            extraArgs=[self.gameover]
-        )
-
-    def gameover(self):
-        # needs to change n passed to resion.set_sort().
-        print('gameover')
+        self.screen.fade_in(self.accept, 'escape', sys.exit)
 
     def start_game(self):
+        self.accept('escape', sys.exit)
         self.walker_controller.start()
         self.aircraft_controller.start()
         # self.region_l.set_active(True)
