@@ -1,7 +1,13 @@
 from enum import Enum, auto
 
 from panda3d.core import NodePath, PandaNode
-from panda3d.core import BitMask32, Vec3
+from panda3d.core import BitMask32, Vec3, Point3, LColor
+
+
+class BodyColor(Enum):
+
+    BLUE = LColor(0, 0, 1, 1)
+    RED = LColor(1, 0, 0, 1)
 
 
 class Status(Enum):
@@ -19,6 +25,9 @@ class Status(Enum):
     WAIT = auto()
     CRASH = auto()
     FINISH = auto()
+    LIFT_UP = auto()
+    LIFT_DOWN = auto()
+    CHECK_DOWNWARD = auto()
 
 
 class Direction(Enum):
@@ -58,10 +67,11 @@ class Sensor(NodePath):
             dist (float)
     """
 
-    def __init__(self, world, direction, orient=1.0, dist=1.5):
+    def __init__(self, world, direction, orient=1.0, dist=1.8):
         super().__init__(PandaNode(direction.name))
         self.world = world
         self.direction = direction
+        self.orient = orient
         pos = direction.get_vector(orient) * dist
         self.set_pos(pos)
 
@@ -70,4 +80,5 @@ class Sensor(NodePath):
 
         if (result := self.world.ray_test_closest(
                 pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
+            # print(result.get_node().get_name())
             return result
