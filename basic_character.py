@@ -67,7 +67,7 @@ class Sensor(NodePath):
             dist (float)
     """
 
-    def __init__(self, world, direction, orient=1.0, dist=1.8):
+    def __init__(self, world, direction, orient=1.0, dist=1.5):
         super().__init__(PandaNode(direction.name))
         self.world = world
         self.direction = direction
