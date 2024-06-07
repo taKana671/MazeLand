@@ -49,16 +49,16 @@ class MazeWalker:
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
 
-        self.character = Character()
-        self.character.reparent_to(self.direction_np)
+        self.body = Character()
+        self.body.reparent_to(self.direction_np)
         self.direction_np.reparent_to(self.root_np)
         self.root_np.reparent_to(base.render)
-        self.world.attach(self.character.node())
+        self.world.attach(self.body.node())
 
         self.moving_distance = moving_distance
         self.angular_velocity = 200
         self.max_acceleration = 15
-        self.character_z = 0.5
+        self.body_z = 0.5
 
         self.total = 0
         self.acceleration = 0
@@ -82,7 +82,7 @@ class MazeWalker:
         forward_vector = self.direction_np.get_quat(base.render).get_forward() * direction
         to_pos = forward_vector * self.moving_distance + start_pt
         hit = self.cast_ray_downward(to_pos)
-        end_pt = hit.get_hit_pos() + Vec3(0, 0, self.character_z)
+        end_pt = hit.get_hit_pos() + Vec3(0, 0, self.body_z)
 
         mid_pt = (start_pt + end_pt) / 2
         mid_pt.z += 1
@@ -151,7 +151,7 @@ class MazeWalker:
     def jump(self, dt):
         if self.acceleration <= -1 * self.max_acceleration:
             hit = self.cast_ray_downward(self.root_np.get_pos())
-            landing_pos = hit.get_hit_pos() + Vec3(0, 0, self.character_z)
+            landing_pos = hit.get_hit_pos() + Vec3(0, 0, self.body_z)
             self.root_np.set_z(landing_pos.z)
             return True
 

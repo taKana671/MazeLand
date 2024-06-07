@@ -16,7 +16,7 @@ from lights import BasicAmbientLight, BasicDayLight
 from scene import Scene
 from aircraft import AircraftController
 from maze_walker import MazeWalkerController
-from basic_character import Direction, Status
+from basic_character import Direction, Status, BodyColor
 from screen import Screen, Button, Frame, Label
 
 
@@ -131,7 +131,9 @@ class MazeLand(ShowBase):
 
         self.scene = Scene(self.world)
 
-        self.aircraft_controller = AircraftController(self.world, self.scene.maze)
+        self.aircraft_ctls = [ctl for ctl in self.create_aircraft_controllers()]
+        # self.aircraft_controller = AircraftController(self.world, self.scene.maze)
+
         # self.aircraft_controller = AircraftController(self.world, self.scene.maze, LColor(0, 0, 1, 1), 0)
         # self.aircraft_controller2 = AircraftController(self.world, self.scene.maze, LColor(1, 0, 0, 1), 1)
 
@@ -144,25 +146,28 @@ class MazeLand(ShowBase):
         # walker_q = deque()
         # self.walker_controller = MazeWalkerController(self.world, self.scene.maze, walker_q)
 
-        # self.camera.reparent_to(self.aircraft_controller.aircraft_.root_np)
-        self.camera.reparent_to(self.aircraft_controller.controller_1.aircraft.root_np)
-        self.camera.set_pos(self.aircraft_controller.controller_1.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        self.camera.look_at(self.aircraft_controller.controller_1.aircraft.air_frame)
+        # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
+
+        self.camera.reparent_to(self.aircraft_ctls[0].aircraft.root_np)
+        self.camera.set_pos(self.aircraft_ctls[0].get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
+        self.camera.look_at(self.aircraft_ctls[0].aircraft.body)
 
         self.camLens.set_fov(90)
         # self.camLens.set_near_far(0.5, 100000)
         # self.camera.reparent_to(self.render)
-        # self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.character)
+        # self.camera_controller = CameraController(self.camera, walker_q, self.walker_controller.walker.body)
 
         # camera_pos = self.walker_controller.navigate(Point3(0, 2.0, 1)) + self.walker_controller.walker_pos
         # self.camera_controller.setup_camera(camera_pos)
 
         self.state = None
- 
+        self.walker_state = None
+        self.aircrafts_state = None
+
         # ############### aircraft part ############################
         # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
         # self.camera.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # self.camera.look_at(self.aircraft_controller.aircraft.air_frame)
+        # self.camera.look_at(self.aircraft_controller.aircraft.body)
         # ###########################################
 
         self.ambient_light = BasicAmbientLight()
@@ -186,6 +191,12 @@ class MazeLand(ShowBase):
         self.accept('finish', self.finish)
         self.taskMgr.add(self.update, 'update')
 
+    def create_aircraft_controllers(self):
+        for i, body_color in enumerate(BodyColor, start=1):
+            offset = Vec2(0, -2) * (i + 1)
+            ctl = AircraftController(self.world, self.scene.maze, body_color, offset)
+            yield ctl
+
     def create_gui(self):
         font = self.loader.loadFont('font/Candaral.ttf')
         frame = Frame(self.aspect2d)
@@ -199,32 +210,33 @@ class MazeLand(ShowBase):
 
     def finish(self):
         self.state = None
-        self.walker_controller.state = None
-        self.aircraft_controller.state = None
+        # self.walker_controller.state = None
+        # self.aircraft_controller.state = None
         self.screen.fade_in(self.accept, 'escape', sys.exit)
 
     def start_game(self):
         self.accept('escape', sys.exit)
         # self.walker_controller.start()
-        self.aircraft_controller.start()
         # self.region_l.set_sort(100)
+        self.aircrafts_state = Status.READY
         self.state = Status.PLAY
+        self.walker_state = Status.PLAY
 
-    def split_screen(self):
-        pos = self.aircraft_controller.get_relative_pos(Point3(0, -2, 5))  # 5
-        cam1 = self.create_cameras((0.0, 0.5, 0.0, 1), pos)
-        cam1.reparent_to(self.aircraft_controller.aircraft.root_np)
-        cam1.look_at(self.aircraft_controller.aircraft.air_frame)
+    # def split_screen(self):
+    #     pos = self.aircraft_controller.get_relative_pos(Point3(0, -2, 5))  # 5
+    #     cam1 = self.create_cameras((0.0, 0.5, 0.0, 1), pos)
+    #     cam1.reparent_to(self.aircraft_controller.aircraft.root_np)
+    #     cam1.look_at(self.aircraft_controller.aircraft.air_frame)
 
-        pos = self.walker_controller.navigate(Point3(0, 1, 2))
-        cam2 = self.create_cameras((0.5, 1.0, 0, 1), pos)
-        floater = NodePath('floater_2')
-        floater.set_z(0.5)   # 3
-        floater.reparent_to(self.walker_controller.walker.root_np)
-        cam2.reparent_to(self.walker_controller.walker.direction_np)
-        cam2.look_at(floater)
+    #     pos = self.walker_controller.navigate(Point3(0, 1, 2))
+    #     cam2 = self.create_cameras((0.5, 1.0, 0, 1), pos)
+    #     floater = NodePath('floater_2')
+    #     floater.set_z(0.5)   # 3
+    #     floater.reparent_to(self.walker_controller.walker.root_np)
+    #     cam2.reparent_to(self.walker_controller.walker.direction_np)
+    #     cam2.look_at(floater)
 
-        self.camNode.set_active(False)
+    #     self.camNode.set_active(False)
 
     def create_cameras(self, region, pos):
         camera = self.make_camera(self.win, displayRegion=region)
@@ -233,20 +245,20 @@ class MazeLand(ShowBase):
         camera.set_pos(pos)
         return camera
 
-    def create_display_regions(self):
-        self.region_l = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
-        # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        # self.region_l.set_sort(100)
-        self.region_l.set_sort(1)
-        cam_np = NodePath(Camera('cam'))
-        cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
-        cam_np.node().get_lens().set_fov(90)
-        self.region_l.set_camera(cam_np)
+    # def create_display_regions(self):
+    #     self.region_l = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
+    #     # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
+    #     # self.region_l.set_sort(100)
+    #     self.region_l.set_sort(1)
+    #     cam_np = NodePath(Camera('cam'))
+    #     cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
+    #     cam_np.node().get_lens().set_fov(90)
+    #     self.region_l.set_camera(cam_np)
 
-        cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
-        cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
-        # self.region_l.set_active(False)
+    #     cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
+    #     cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
+    #     cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
+    #     # self.region_l.set_active(False)
 
 
         # main_region = self.win.get_display_region(0)
@@ -298,7 +310,7 @@ class MazeLand(ShowBase):
     def print_info(self):
         self.state = Status.PLAY
         
-        # self.camera.look_at(self.walker_controller.walker.character)
+        # self.camera.look_at(self.walker_controller.walker.body)
         print('walker_pos', self.walker_controller.walker_pos)
 
         # print('camera_pos', self.camera.get_pos(self.render))
@@ -324,33 +336,27 @@ class MazeLand(ShowBase):
 
         return direction
 
-    def detect_accident(self):
-        walker_nd = self.walker_controller.walker.character.node()
-        aircraft_nd = self.aircraft_controller.aircraft.air_frame.node()
-
-        if (result := self.world.contact_test_pair(
-                walker_nd, aircraft_nd)).get_num_contacts() > 0:
-            return result
-
-    # def detect_aircraft_accident(self):
-    #     aircraft1_nd = self.aircraft_controller.aircraft.air_frame.node()
-    #     aircraft2_nd = self.aircraft_controller2.aircraft.air_frame.node()
+    # def detect_accident(self):
+    #     walker_nd = self.walker_controller.walker.body.node()
+    #     aircraft_nd = self.aircraft_controller.aircraft.air_frame.node()
 
     #     if (result := self.world.contact_test_pair(
-    #             aircraft1_nd, aircraft2_nd)).get_num_contacts() > 0:
+    #             walker_nd, aircraft_nd)).get_num_contacts() > 0:
     #         return result
 
-    def update(self, task):
-        dt = globalClock.get_dt()
-        self.aircraft_controller.update(dt)
+    def detect_accident(self, nd1, nd2):
+        if (result := self.world.contact_test_pair(nd1, nd2)).get_num_contacts() > 0:
+            return result
 
+    def control_walker(self, dt):
+        pass
         # direction = self.get_key_input()
         # self.walker_controller.update(direction, dt)
 
         # self.camera_controller.update(
         #     dt, self.walker_controller.walker_pos, self.walker_controller.state)
 
-        # match self.state:
+        # match self.walker_state:
 
         #     case Status.PLAY:
         #         if self.detect_accident():
@@ -361,9 +367,52 @@ class MazeLand(ShowBase):
         #     case Status.WAIT:
         #         if not self.detect_accident():
         #             self.aircraft_controller.stop = False
-        # print([d for d in self.aircraft_controller2.aircraft.detect_route()])
 
+    def detect_aircrafts_accident(self):
+        nd1 = self.aircraft_ctls[0].aircraft_node
+        nd2 = self.aircraft_ctls[1].aircraft_node
+        return self.detect_accident(nd1, nd2)
 
+    def control_aircrafts(self, dt):
+        for ctl in self.aircraft_ctls:
+            ctl.update(dt)
+
+        match self.aircrafts_state:
+
+            case Status.PLAY:
+                if self.detect_aircrafts_accident():
+                    ascend = False
+
+                    for ctl in self.aircraft_ctls:
+                        ctl.dead_end = False
+
+                        if ctl.state == Status.MOVE:
+                            if not ascend:
+                                ctl.state = Status.LIFT_UP
+                                ascend = True
+                                continue
+                            ctl.stop = True
+
+                    self.aircrafts_state = Status.WAIT
+
+            case Status.WAIT:
+                if not self.detect_aircrafts_accident():
+                    for ctl in self.aircraft_ctls:
+                        if ctl.stop:
+                            ctl.stop = False
+                    self.aircrafts_state = Status.PLAY
+
+            case Status.READY:
+                for i, ctl in enumerate(self.aircraft_ctls, start=1):
+                    ctl.start(0.5 * i)
+
+                self.aircrafts_state = Status.PLAY
+
+    def update(self, task):
+        dt = globalClock.get_dt()
+        self.control_aircrafts(dt)
+        # self.aircraft_controller.update(dt)
+        # self.control_walker(dt)
 
         self.world.do_physics(dt)
         return task.cont

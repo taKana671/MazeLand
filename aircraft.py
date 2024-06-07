@@ -3,6 +3,7 @@ import random
 from panda3d.bullet import BulletRigidBodyNode, BulletSphereShape, BulletConvexHullShape
 from panda3d.core import NodePath
 from panda3d.core import TransformState, Vec3, BitMask32, Point3, LColor, Vec2
+from direct.interval.IntervalGlobal import Sequence, Func
 
 from create_geomnode import SphericalShape, RightTriangularPrism
 from utils import create_line_node
@@ -53,21 +54,22 @@ class Aircraft:
         self.world = world
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
-        self.air_frame = AirFrame(body_color)
-        self.air_frame.reparent_to(self.direction_np)
+        self.body = AirFrame(body_color)
+        self.body.reparent_to(self.direction_np)
         self.direction_np.reparent_to(self.root_np)
         self.root_np.reparent_to(base.render)
-        self.world.attach(self.air_frame.node())
+        self.world.attach(self.body.node())
 
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
+        self.vertical_velocity = 3
 
         self.total_distance = 0
         self.total_angle = 0
         self.total = 0
 
         self.create_sensors()
-        self.draw_debug_lines()
+        # self.draw_debug_lines()
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -136,14 +138,6 @@ class Aircraft:
 
         self.set_pos(self.get_pos() + forward_vector * distance)
 
-    def check_forward(self, other, bit):
-        sensor = self.sensors[0]
-        pos_from = self.get_pos()
-
-        if result := sensor.detect_obstacles(pos_from, bit):
-            if result.get_node() == other.aircraft.air_frame.node():
-                return True
-
     def check_downward(self, n=5):
         current_pos = self.root_np.get_pos()
         below_pos = current_pos - Vec3(0, 0, 2)
@@ -154,47 +148,44 @@ class Aircraft:
 
         if (result := self.world.sweep_test_closest(
                 shape, ts_from, ts_to, BitMask32.bit(n), 0.0)).has_hit():
-            if result.get_node() != self.air_frame.node():
+            if result.get_node() != self.body.node():
                 # print(result.get_node().get_name())
                 return True
 
     def lift(self, dt, max_distance=1, direction=1):
-        distance = self.linear_velocity * 2 * dt
+        distance = self.vertical_velocity * 2 * dt
 
         if (total := self.total + distance) >= max_distance:
             z = -8.5 + max_distance if direction > 0 else -8.5
-            self.root_np.set_z(z)
+            self.root_np.set_z(z) 
             self.total = 0
             return True
 
         self.root_np.set_z(self.root_np.get_z() + distance * direction)
         self.total = total
 
+    def detect_collision(self, other):
+        if (result := self.world.contact_test_pair(
+                self.body.node(), other.body.node())).get_num_contacts() > 0:
+            return result
 
-class Controller:
+
+class AircraftController:
+# class Controller:
 
     # def __init__(self, world, maze_builder):
-    def __init__(self, world, maze_builder, body_color, start_xy):
+    def __init__(self, world, maze_builder, body_color, offset):
         self.world = world
         self.maze = maze_builder
         self.dead_end = None
         self.stop = False
-
-        self.aircraft = Aircraft(self.world, body_color)
-        z = self.maze.wall_size.z - 0.5
-        maze_z = self.maze.get_maze_pos().z
-        self.aircraft_z = z + maze_z
-
-        self.aircraft.set_pos(Point3(start_xy, self.aircraft_z))
-        print('aircraft pos', Point3(start_xy, self.aircraft_z))
-
         self.state = None
 
-        # self.aircraft_2 = Aircraft(self.world, LColor(1, 0, 0, 1), 2)
-        # xy = self.maze.get_entrance() + Vec2(0, -2)
-        # z = self.maze.wall_size.z - 0.5
-        # maze_z = self.maze.get_maze_pos().z
-        # self.aircraft_2.set_pos(Point3(xy, z + maze_z))
+        self.aircraft = Aircraft(self.world, body_color)
+        xy = self.maze.get_entrance() + offset
+        self.start_z = self.maze.wall_size.z - 0.5 + self.maze.get_maze_pos().z
+        self.aircraft.set_pos(Point3(xy, self.start_z))
+        print('aircraft pos', Point3(xy, self.start_z))
 
     def get_relative_pos(self, pos):
         """Return a relative point to enable camera to follow the character
@@ -205,6 +196,10 @@ class Controller:
     @property
     def aircraft_pos(self):
         return self.aircraft.root_np.get_pos()
+
+    @property
+    def aircraft_node(self):
+        return self.aircraft.body.node()
 
     def close_route(self):
         pos = self.aircraft.get_backward_pos(2.)
@@ -249,7 +244,7 @@ class Controller:
                             self.state = Status.FINISH
                             base.messenger.send('finish')
 
-                        elif self.aircraft.root_np.get_z() > self.aircraft_z:
+                        elif self.aircraft.root_np.get_z() > self.start_z:
                             self.state = Status.CHECK_DOWNWARD
 
                         else:
@@ -273,17 +268,31 @@ class Controller:
 
                 case Status.LIFT_DOWN:
                     if self.aircraft.lift(dt, direction=-1):
+                        self.handling_accident = False
                         self.state = Status.STOP
 
                 case Status.CHECK_DOWNWARD:
                     if not self.aircraft.check_downward():
                         self.state = Status.LIFT_DOWN
 
-    def start(self):
-        self.state = Status.STOP
+                case Status.WAIT:
+                    pass
+
+    def start(self, duration):
+        xy = self.maze.get_entrance()
+        pos = Point3(xy, self.start_z)
+
+        def _start():
+            self.state = Status.STOP
+
+        Sequence(
+            self.aircraft.root_np.posInterval(duration, pos),
+            Func(_start)
+        ).start()
 
 
-class AircraftController:
+# class AircraftController:
+class Controller:
 
     def __init__(self, world, maze_builder):
         self.world = world
@@ -296,20 +305,26 @@ class AircraftController:
         xy = temp_xy + Vec2(0, -2)
         self.controller_2 = Controller(self.world, self.maze, BodyColor.RED, xy)
 
+        self.aircrafts = [
+            self.controller_1,
+            self.controller_2
+        ]
+
         self.state = None
 
     def detect_accident(self):
-        aircraft1_nd = self.controller_1.aircraft.air_frame.node()
-        aircraft2_nd = self.controller_2.aircraft.air_frame.node()
+        aircraft1_nd = self.controller_1.aircraft.body.node()
+        aircraft2_nd = self.controller_2.aircraft.body.node()
 
         if (result := self.world.contact_test_pair(
                 aircraft1_nd, aircraft2_nd)).get_num_contacts() > 0:
             return result
 
     def update(self, dt):
+        # print('1', self.controller_1.state, self.controller_2.state)
         self.controller_1.update(dt)
         self.controller_2.update(dt)
-
+        # print('2', self.controller_1.state, self.controller_2.state)
         # print('blue', self.controller_1.aircraft.root_np.get_z())
         # print('red', self.controller_2.aircraft.root_np.get_z())
 
@@ -318,46 +333,35 @@ class AircraftController:
                 if self.detect_accident():
                     print('accident', 'blue: ', self.controller_1.state, 'red: ', self.controller_2.state)
 
-                    # self.lifted = self.controller_1 if self.controller_1.state == Status.MOVE else self.controller_2
-                    # self.normal = self.controller_1 if self.lifted == self.controller_2 else self.controller_2
-                    # self.lifted.state = Status.LIFT_UP
-                    # self.lifted.dead_end = False
-                    # self.normal.dead_end = False
+                    ascend = False
 
-                    # if self.normal.state == Status.MOVE:
-                    #     self.normal.stop = True
+                    for aircraft in self.aircrafts:
+                        aircraft.dead_end = False
 
-                    # self.state = Status.WAIT
+                        if aircraft.state == Status.MOVE:
+                            if not ascend:
+                                aircraft.state = Status.LIFT_UP
+                                ascend = True
+                                continue
+                            aircraft.stop = True
 
-                    if self.controller_1.state == Status.MOVE:
-                        self.controller_1.state = Status.LIFT_UP
-
-                        self.target_aircraft = self.controller_1
-
-                        if self.controller_2.state == Status.MOVE:
-                            self.controller_2.stop = True
-                    elif self.controller_2.state == Status.MOVE:
-                        self.controller_2.state = Status.LIFT_UP
-                        self.target_aircraft = self.controller_2
-                        if self.controller_1.state == Status.MOVE:
-                            self.controller_1.stop = True
-
-                    if self.controller_1.dead_end:
-                        self.controller_1.dead_end = False
-
-                    if self.controller_2.dead_end:
-                        self.controller_2.dead_end = False
                     self.state = Status.WAIT
 
             case Status.WAIT:
-                if self.target_aircraft.state == Status.MOVE:
-                    if self.target_aircraft == self.controller_1:
-                        self.controller_2.stop = False
-                    else:
-                        self.controller_1.stop = False
+                if not self.detect_accident():
+                    for aircraft in self.aircrafts:
+                        if aircraft.stop:
+                            aircraft.stop = False
                     self.state = Status.PLAY
 
-    def start(self):
+                # if not self.detect_accident():
+                #     if self.controller_2.stop:
+                #         self.controller_2.unpause()
+                #     if self.controller_1.stop:
+                #         self.controller_1.unpause()
+                #     self.state = Status.PLAY
+
+    def start(self): 
         self.state = Status.PLAY
         self.controller_1.start()
         self.controller_2.start()
