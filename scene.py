@@ -15,6 +15,7 @@ from panda3d.core import BitMask32, Vec3, LColor
 
 from create_geomnode import Cylinder
 from create_maze_3d import MazeBuilder, Space
+from lights import BasicAmbientLight, BasicDayLight
 
 
 class Sky(NodePath):
@@ -183,6 +184,9 @@ class Scene:
 
     def __init__(self, world):
         self.world = world
+
+        self.ambient_light = BasicAmbientLight()
+        self.day_light = BasicDayLight()
 
         self.scene = NodePath('scene')
         self.scene.reparent_to(base.render)

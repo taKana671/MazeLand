@@ -43,8 +43,10 @@ class PassingPoints(NamedTuple):
 
 class MazeWalker:
 
-    def __init__(self, world, moving_distance):
+    def __init__(self, world, maze_builder, walker_q):
         self.world = world
+        self.maze = maze_builder
+        self.trace_q = walker_q
 
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
@@ -55,7 +57,7 @@ class MazeWalker:
         self.root_np.reparent_to(base.render)
         self.world.attach(self.body.node())
 
-        self.moving_distance = moving_distance
+        self.moving_distance = self.maze.wall_size.x
         self.angular_velocity = 200
         self.max_acceleration = 15
         self.body_z = 0.5
@@ -64,6 +66,11 @@ class MazeWalker:
         self.acceleration = 0
 
         self.sensors = [sensor for sensor in self.create_sensors()]
+
+        self.orient = -1
+        xy = self.maze.get_exit()
+        self.set_pos(Point3(xy, -8.5))
+        self.state = None
 
     def create_sensors(self):
         for direction in Direction.around():
@@ -159,7 +166,7 @@ class MazeWalker:
         self.root_np.set_z(self.root_np.get_z() + next_z)
         self.acceleration -= 0.98 * 0.25
 
-    def start_projectile(self, aircraft_pos):
+    def start_projectile(self):
         current_pos = self.root_np.get_pos()
         result = self.cast_ray_downward(current_pos)
         end_z = result.get_hit_pos().z
@@ -180,35 +187,15 @@ class MazeWalker:
         )
         self.projectile_seq.start()
 
-
-class MazeWalkerController:
-
-    def __init__(self, world, maze_builder, walker_q):
-        self.world = world
-        self.maze = maze_builder
-        self.walker = MazeWalker(self.world, self.maze.wall_size.x)
-        self.trace_q = walker_q
-
-        self.orient = -1
-        xy = self.maze.get_exit()
-        # print('walker start pos', Point3(xy, -5))
-        self.walker.set_pos(Point3(xy, -8.5))
-        # self.walker.set_pos(Point3(18, -18, -9))
-        self.state = None
-
-    @property
-    def walker_pos(self):
-        return self.walker.root_np.get_pos()
-
     def change_direction(self, direction):
         match direction:
 
             case Direction.FORWARD | Direction.BACKWARD:
-                if not self.walker.check_route(direction):
+                if not self.check_route(direction):
                     return None
 
-                self.walker.get_passing_points(direction.get_direction(self.orient))
-                self.trace_q.append(self.walker.passing_pts)
+                self.get_passing_points(direction.get_direction(self.orient))
+                self.trace_q.append(self.passing_pts)
                 return Status.MOVE
 
             case Direction.LEFTWARD:
@@ -218,7 +205,7 @@ class MazeWalkerController:
                 return Status.RIGHT_TURN
 
             case Direction.UPWARD:
-                self.walker.acceleration = self.walker.max_acceleration
+                self.acceleration = self.max_acceleration
                 return Status.DO_JUMP
 
             case _:
@@ -231,35 +218,35 @@ class MazeWalkerController:
                     self.state = status
 
             case Status.LEFT_TURN:
-                if self.walker.turn(Direction.LEFTWARD.get_direction(self.orient), dt):
+                if self.turn(Direction.LEFTWARD.get_direction(self.orient), dt):
                     self.state = Status.STOP
 
             case Status.RIGHT_TURN:
-                if self.walker.turn(Direction.RIGHTWARD.get_direction(self.orient), dt):
+                if self.turn(Direction.RIGHTWARD.get_direction(self.orient), dt):
                     self.state = Status.STOP
 
             case Status.MOVE:
-                if self.walker.move(dt):
-                    if self.maze.is_outside(self.walker_pos.xy):
+                if self.move(dt):
+                    if self.maze.is_outside(self.get_pos().xy):
                         self.finish()
                     else:
                         self.state = Status.STOP
 
             case Status.DO_JUMP:
-                if self.walker.jump(dt):
+                if self.jump(dt):
                     self.state = Status.STOP
 
             case Status.CRASH:
-                if not self.walker.projectile_seq.is_playing():
+                if not self.projectile_seq.is_playing():
                     self.finish()
 
     def navigate(self, pos):
-        return self.walker.root_np.get_relative_point(self.walker.direction_np, pos)
+        return self.root_np.get_relative_point(self.direction_np, pos)
 
-    def crash(self, aircraft_pos):
+    def crash(self):
         if self.state != Status.CRASH:
             self.state = Status.CRASH
-            self.walker.start_projectile(aircraft_pos)
+            self.start_projectile()
 
     def start(self):
         self.state = Status.STOP

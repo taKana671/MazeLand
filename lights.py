@@ -8,6 +8,7 @@ class BasicAmbientLight(NodePath):
     def __init__(self):
         super().__init__(AmbientLight('ambient_light'))
         self.node().set_color((0.6, 0.6, 0.6, 1))
+        self.reparent_to(base.render)
         base.render.set_light(self)
 
 
@@ -31,6 +32,7 @@ class BasicDayLight(NodePath):
 
         base.render.set_light(self)
         base.render.set_shader_auto()
+        self.reparent_to(base.render)
         # self.node().show_frustum()
 
 
