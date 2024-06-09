@@ -28,9 +28,7 @@ load_prc_file_data("", """
 
 class CameraController:
 
-    # def __init__(self, camera, walker_q, floater_parent):
     def __init__(self, walker_q, floater_parent):
-        # self.camera = camera
         self.walker_q = walker_q
         self.before_walker_pos = None
 
@@ -127,6 +125,7 @@ class MazeLand(ShowBase):
         self.world = BulletWorld()
         self.world.set_gravity(Vec3(0, 0, -9.81))
         self.scene = Scene(self.world)
+        self.scene.build_maze()
 
         self.aircraft_1 = Aircraft(self.world, self.scene.maze, BodyColor.BLUE, Vec2(0, -2))
         self.aircraft_2 = Aircraft(self.world, self.scene.maze, BodyColor.RED, Vec2(0, -2) * 2)
@@ -137,30 +136,11 @@ class MazeLand(ShowBase):
 
         # self.create_display_regions()
         self.split_screen()
+        self.create_gui()
 
-        # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
-
-        # self.camera.reparent_to(self.aircraft_1.root_np)
-        # self.camera.set_pos(self.aircraft_1.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # self.camera.look_at(self.aircraft_1.body)
-
-        # self.camLens.set_fov(90)
-        # self.camLens.set_near_far(0.5, 100000)
-        # self.camera.reparent_to(self.render)
-        # self.camera_controller = CameraController(self.camera, walker_q, self.walker.body)
-        # camera_pos = self.walker.navigate(Point3(0, 2, 1)) + self.walker.get_pos()
-        # self.camera_controller.setup_camera(camera_pos)
-
+        self.accident_aircrafts = []
         self.walker_state = None
         self.aircrafts_state = None
-
-        # ############### aircraft part ############################
-        # self.camera.reparent_to(self.aircraft_controller.aircraft.root_np)
-        # self.camera.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # self.camera.look_at(self.aircraft_controller.aircraft.body)
-        # ###########################################
-
-        self.create_gui()
 
         self.debug = self.render.attach_new_node(BulletDebugNode('debug'))
         self.world.set_debug_node(self.debug.node())
@@ -179,20 +159,30 @@ class MazeLand(ShowBase):
 
     def create_gui(self):
         font = self.loader.loadFont('font/Candaral.ttf')
-        frame = Frame(self.aspect2d)
-        self.screen = Screen(frame)
 
-        Label(frame, 'Maze Land', (0, 0, 0.3), font)
-        Button(frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game), focus=True)
-        Button(frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+        self.again_frame = Frame(self.aspect2d)
+        Label(self.again_frame, 'Try Again', (0, 0, 0.3), font)
+        Button(self.again_frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_again), focus=True)
+        Button(self.again_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+        self.again_frame.hide()
 
+        start_frame = Frame(self.aspect2d)
+        Label(start_frame, 'Maze Land', (0, 0, 0.3), font)
+        Button(start_frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game), focus=True)
+        Button(start_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+
+        self.screen = Screen(start_frame)
         self.screen.show()
 
     def finish(self):
         self.state = None
         # self.walker_controller.state = None
         # self.aircraft_controller.state = None
+        self.screen.frame = self.again_frame
         self.screen.fade_in(self.accept, 'escape', sys.exit)
+
+    def start_again(self):
+        pass
 
     def start_game(self):
         self.accept('escape', sys.exit)
@@ -230,8 +220,8 @@ class MazeLand(ShowBase):
         rel_pos = Point3(0, -rel_y, 5)
 
         aircraft_regions = [
-            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left; Vec4(0., 0.5, 0.75, 1); 0.5 - 0.001 to make white line.
-            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right; Vec4(0.5., 1, 0.75, 1); 0.5 + 0.001 to make white line.
+            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; Vec4(0., 0.5, 0.75, 1); 0.5 - 0.001 to make white line.
+            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; Vec4(0.5., 1, 0.75, 1); 0.5 + 0.001 to make white line.
         ]
 
         for aircraft, region in aircraft_regions:
@@ -263,75 +253,47 @@ class MazeLand(ShowBase):
 
         return camera
 
-    def create_region_camera(self, name, aircraft):
-        cam_np = NodePath(Camera(name))
-        cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
-        cam_np.node().get_lens().set_fov(90)
-
-        cam_np.reparent_to(aircraft.root_np)
-        cam_np.set_pos(aircraft.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        cam_np.look_at(aircraft.body)
-        return cam_np
-
     def create_display_regions(self):
-        self.region_left = self.win.make_display_region((0., 0.25, 0.75, 1))  # 左上
-        cam_np = self.create_region_camera('cam_1', self.aircraft_1)
-        # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        self.region_left.set_sort(100)
-        self.region_left.set_camera(cam_np)
+        props = self.win.get_properties()
+        window_size = props.get_size()
+        rel_y = self.scene.maze.wall_size.y
 
-        self.region_right = self.win.make_display_region((0.75, 1, 0.75, 1))  # 右上
-        cam_np = self.create_region_camera('cam_2', self.aircraft_2)
-        self.region_right.set_sort(101)
-        self.region_right.set_camera(cam_np)
+        # make split screen for aircrafts
+        rel_pos = Point3(0, -rel_y, 5)
 
+        aircraft_regions = [
+            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; Vec4(0., 0.5, 0.75, 1); 0.5 - 0.001 to make white line.
+            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; Vec4(0.5., 1, 0.75, 1); 0.5 + 0.001 to make white line.
+        ]
 
+        for i, (aircraft, region) in enumerate(aircraft_regions):
+            display_region = self.win.make_display_region(region)
+            cam = self.create_region_camera(f'cam_aircraft_{i}', region, window_size)
+            # needs set_sort if one region overlaps another.
+            # display_region.set_sort(100 + i)
+            display_region.set_camera(cam)
+            cam.set_pos(aircraft.get_relative_pos(rel_pos))  # Point3(0, -8, 6)
+            cam.reparent_to(aircraft.root_np)
+            cam.look_at(aircraft.body)
 
-        # cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
-        # cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
-        # self.region_l.set_active(False)
+        cam_pos = self.walker.navigate(Point3(0, rel_y, 1)) + self.walker.get_pos()
+        region = Vec4(0, 1, 0, 0.748)  # Vec4(0., 0.5, 0.75, 1); 0.75 - 0.002 to make white line.
+        display_region = self.win.make_display_region(region)
+        cam = self.create_region_camera('cam_walker', region, window_size, near=0.5)
+        display_region.set_camera(cam)
+        cam.reparent_to(self.render)
+        self.camera_controller.setup_camera(cam, cam_pos)
 
+        self.camNode.set_active(False)
 
-        # main_region = self.win.get_display_region(0)
-        # main_region.set_sort(0)
+    def create_region_camera(self, name, region, window_size, fov=90, near=1, far=100000):
+        camera_np = NodePath(Camera(name))
+        aspect_ratio = self.calc_aspect_ratio(window_size, region)
+        camera_np.node().get_lens().set_aspect_ratio(aspect_ratio)
+        camera_np.node().get_lens().set_fov(fov)
+        camera_np.node().get_lens().set_near_far(near, far)
 
-
-        # dr = self.win.make_display_region((0., 0.25, 0.75, 1))
-        # dr.set_sort(20)
-        # cam_np2 = NodePath(Camera('cam2'))
-        # lens = OrthographicLens()
-        # lens.set_film_size(2, 2)
-        # lens.set_near_far(-1000, 1000)
-        # cam_np2.node().set_lens(lens)
-
-        # my_render2d = NodePath('myrender2d')
-        # my_render2d.set_depth_test(False)
-        # my_render2d.set_depth_write(False)
-        # cam_np2.reparent_to(my_render2d)
-        # dr.set_camera(cam_np2)
-
-        # from direct.gui.DirectGui import OnscreenText
-        # OnscreenText(
-        #     text='Hello',
-        #     parent=my_render2d,
-        #     # align=TextNode.ALeft,
-        #     # pos=(0.05, start_y - (i * 0.05)),
-        #     fg=(1, 1, 1, 1),
-        #     scale=0.5,
-        # )
-
-        # region = self.win.make_display_region((0., 0.25, 0.75, 1)) # 左上
-        # # region = self.win.make_display_region((0.75, 1, 0.75, 1)) # 右上
-        # region.set_sort(200)
-        # cam_np = NodePath(Camera('cam'))
-        # cam_np.node().get_lens().set_aspect_ratio(3.0 / 4.0)
-        # cam_np.node().get_lens().set_fov(90)
-        # region.set_camera(cam_np)
-
-        # cam_np.reparent_to(self.aircraft_controller.aircraft.root_np)
-        # cam_np.set_pos(self.aircraft_controller.get_relative_pos(Point3(0, -2, 5)))  # Point3(0, -8, 6)
-        # cam_np.look_at(self.aircraft_controller.aircraft.air_frame)
+        return camera_np
 
     def toggle_debug(self):
         if self.debug.is_hidden():
@@ -366,19 +328,24 @@ class MazeLand(ShowBase):
         match self.walker_state:
 
             case Status.PLAY:
-
                 for aircraft in [self.aircraft_1, self.aircraft_2]:
                     if aircraft.detect_collision(self.walker.body):
-                        self.walker.crash()
+                        self.accident_aircrafts.append(aircraft)
                         aircraft.stop = True
-                        break
-                    self.state = Status.WAIT
+
+                if self.accident_aircrafts:
+                    print(self.accident_aircrafts)
+                    self.walker.crash()
+                    self.walker_state = Status.WAIT
 
             case Status.WAIT:
-                for aircraft in [self.aircraft_1, self.aircraft_2]:
+                for aircraft in self.accident_aircrafts:
                     if not aircraft.detect_collision(self.walker.body):
-                        if aircraft.stop:
-                            aircraft.stop = False
+                        aircraft.stop = False
+
+                if all(not aircraft.stop for aircraft in self.accident_aircrafts):
+                    self.accident_aircrafts.clear()
+                    self.walker_state = Status.PLAY
 
     def control_aircrafts(self, dt):
         self.aircraft_1.update(dt)

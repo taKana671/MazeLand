@@ -70,6 +70,11 @@ class MazeWalker:
         self.orient = -1
         xy = self.maze.get_exit()
         self.set_pos(Point3(xy, -8.5))
+
+        # xy = self.maze.get_entrance()
+        # xy += Point2(0, 2)
+        # self.set_pos(Point3(xy, -8.5))
+
         self.state = None
 
     def create_sensors(self):

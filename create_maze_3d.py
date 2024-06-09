@@ -31,16 +31,17 @@ class Space(NamedTuple):
 
 class MazeBuilder:
 
-    def __init__(self, world, parent, rows, cols):
+    # def __init__(self, world, parent, rows, cols):
+    def __init__(self, world, parent):
         self.world = world
         self.wall_size = Vec3(2, 2, 4)
-        self.rows = rows if rows % 2 != 0 else rows - 1
-        self.cols = cols if cols % 2 != 0 else cols - 1
+        # self.rows = rows if rows % 2 != 0 else rows - 1
+        # self.cols = cols if cols % 2 != 0 else cols - 1
 
-        self.entrance = Space(self.rows - 1, self.cols - 2)
-        self.exit = Space(0, 1)
-        self.top_left = self.space_to_cartesian(0, 0)
-        self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
+        # self.entrance = Space(self.rows - 1, self.cols - 2)
+        # self.exit = Space(0, 1)
+        # self.top_left = self.space_to_cartesian(0, 0)
+        # self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(parent)
         self.np_walls.set_pos(0, 0, -12)
@@ -59,6 +60,21 @@ class MazeBuilder:
         x = (col - self.cols // 2) * self.wall_size.x
         y = (-row + self.rows // 2) * self.wall_size.y
         return Point2(x, y)
+
+    def setup(self, rows, cols):
+        """Build a maze.
+            Args:
+                rows (int): the number of rows; must be odd.
+                cols (int): the number of columns; must be odd.
+        """
+        self.rows = rows if rows % 2 != 0 else rows - 1
+        self.cols = cols if cols % 2 != 0 else cols - 1
+
+        self.entrance = Space(self.rows - 1, self.cols - 2)
+        self.exit = Space(0, 1)
+        self.top_left = self.space_to_cartesian(0, 0)
+        self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
+        self.build()
 
     def build(self):
         tex_brick = base.loader.load_texture('textures/brick.jpg')
@@ -120,3 +136,8 @@ class MazeBuilder:
 
         if pt2.y < lower or pt2.y > upper:
             return True
+
+    def destroy(self):
+        for block in self.np_walls.get_child(0).get_children():
+            self.world.remove(block.node())
+            block.remove_node()

@@ -133,28 +133,42 @@ class Poles(NodePath):
         shape = BulletConvexHullShape()
         shape.add_geom(cylinder.node().get_geom(0))
         self.node().add_shape(shape, TransformState.make_pos(pos))
+
         return cylinder
 
 
 class GoalGate(NodePath):
 
-    def __init__(self, world, gate_pos, gate_angle=180, gate_w=4, pole_h=4):
+    # def __init__(self, world, gate_pos, gate_angle=180, gate_w=4, pole_h=4):
+    def __init__(self, world, gate_w=4, pole_h=4):
         super().__init__(PandaNode('goal_gate'))
         self.world = world
+        self.gate_w = gate_w
+        self.pole_h = pole_h
+        self.create_poles()
+        # self.set_h(gate_angle)
+        # self.set_pos(gate_pos)
+
+        # self.create_poles(gate_w, pole_h)
+
+    def setup(self, gate_pos, gate_angle=180):
         self.set_h(gate_angle)
         self.set_pos(gate_pos)
+        self.create_banner()
 
-        self.create_poles(gate_w, pole_h)
-        self.create_banner(pole_h)
+    def destroy(self):
+        self.world.remove(self.banner.node())
+        self.banner.remove_node()
 
-    def create_poles(self, gate_w, pole_h):
-        self.poles = Poles(gate_w, pole_h)
+    def create_poles(self):
+        self.poles = Poles(self.gate_w, self.pole_h)
         tex = base.loader.load_texture('textures/concrete2.jpg')
         self.poles.set_texture(tex)
         self.poles.reparent_to(self)
         self.world.attach(self.poles.node())
 
-    def create_banner(self, pole_h):
+    # def create_banner(self, pole_h):
+    def create_banner(self):
         info = self.world.get_world_info()
         info.set_air_density(1.2)
         info.set_water_density(0)
@@ -167,10 +181,10 @@ class GoalGate(NodePath):
         left_w_pt = self.poles.left.get_pos(base.render)
         right_w_pt = self.poles.right.get_pos(base.render)
 
-        p00 = left_w_pt + Vec3(0, 0, pole_h - 1)   # bottom left
-        p01 = right_w_pt + Vec3(0, 0, pole_h - 1)  # top left
-        p10 = left_w_pt + Vec3(0, 0, pole_h)       # bottom right
-        p11 = right_w_pt + Vec3(0, 0, pole_h)      # top right
+        p00 = left_w_pt + Vec3(0, 0, self.pole_h - 1)   # bottom left
+        p01 = right_w_pt + Vec3(0, 0, self.pole_h - 1)  # top left
+        p10 = left_w_pt + Vec3(0, 0, self.pole_h)       # bottom right
+        p11 = right_w_pt + Vec3(0, 0, self.pole_h)      # top right
 
         fixeds = 1 + 2 + 4 + 8
         gendiags = True
@@ -198,10 +212,18 @@ class Scene:
         self.terrain.reparent_to(self.scene)
         self.world.attach(self.terrain.node())
 
-        self.maze = MazeBuilder(self.world, self.scene, 21, 21)
-        self.maze.build()
+        self.maze = MazeBuilder(self.world, self.scene)
+        gate_w = self.maze.wall_size.x * 2
+        self.goal_gate = GoalGate(self.world, gate_w=gate_w)
+        self.goal_gate.reparent_to(self.scene)
 
+    def build_maze(self, rows=21, cols=21):
+        self.maze.setup(rows, cols)
+        # make goal gate.
         xy = self.maze.get_entrance()
         gate_pos = Point3(xy, self.maze.get_maze_pos().z + 2)
-        self.goal_gate = GoalGate(self.world, gate_pos)
-        self.goal_gate.reparent_to(self.scene)
+        self.goal_gate.setup(gate_pos)
+
+    def destroy_maze(self):
+        self.maze.destroy()
+        self.goal_gate.destroy()
