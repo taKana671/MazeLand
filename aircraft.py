@@ -54,7 +54,7 @@ class Aircraft:
     def __init__(self, world, maze_builder, body_color, offset, linear_velocity=5, angular_velocity=100):
         self.world = world
         self.maze = maze_builder
-
+        self.offset = offset
 
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
@@ -68,18 +68,33 @@ class Aircraft:
         self.angular_velocity = angular_velocity
         self.vertical_velocity = 3
 
-        self.total_distance = 0
-        self.total_angle = 0
-        self.total = 0
+        # self.total_distance = 0
+        # self.total_angle = 0
+        # self.total_ascent = 0
 
         self.create_sensors()
+        self.initialize()
         # self.draw_debug_lines()
+
+        # self.dead_end = False
+        # self.stop = False
+        # self.state = None
+
+        # xy = self.maze.get_entrance() + offset
+        # self.start_z = self.maze.wall_size.z - 0.5 + self.maze.get_maze_pos().z
+        # self.set_pos(Point3(xy, self.start_z))
+        # print('aircraft pos', Point3(xy, self.start_z))
+
+    def initialize(self):
+        self.total_distance = 0
+        self.total_angle = 0
+        self.total_ascent = 0
 
         self.dead_end = False
         self.stop = False
         self.state = None
 
-        xy = self.maze.get_entrance() + offset
+        xy = self.maze.get_entrance() + self.offset
         self.start_z = self.maze.wall_size.z - 0.5 + self.maze.get_maze_pos().z
         self.set_pos(Point3(xy, self.start_z))
         print('aircraft pos', Point3(xy, self.start_z))
@@ -138,7 +153,6 @@ class Aircraft:
         self.total_angle = total
         self.direction_np.set_h(self.direction_np.get_h() - angle * rotate_direction)
 
-    # def move_forward(self, max_distance, dt):
     def move_forward(self, dt, max_distance=2):
         forward_vector = self.direction_np.get_quat(base.render).get_forward()
         distance = self.linear_velocity * dt
@@ -165,17 +179,17 @@ class Aircraft:
                 # print(result.get_node().get_name())
                 return True
 
-    def lift(self, dt, max_distance=1, direction=1):
+    def lift(self, dt, max_ascent=1, direction=1):
         distance = self.vertical_velocity * 2 * dt
 
-        if (total := self.total + distance) >= max_distance:
-            z = -8.5 + max_distance if direction > 0 else -8.5
+        if (total := self.total_ascent + distance) >= max_ascent:
+            z = -8.5 + max_ascent if direction > 0 else -8.5
             self.root_np.set_z(z)
-            self.total = 0
+            self.total_ascent = 0
             return True
 
         self.root_np.set_z(self.root_np.get_z() + distance * direction)
-        self.total = total
+        self.total_ascent = total
 
     def detect_collision(self, other):
         if (result := self.world.contact_test_pair(
@@ -261,9 +275,6 @@ class Aircraft:
                 case Status.CHECK_DOWNWARD:
                     if not self.check_downward():
                         self.state = Status.LIFT_DOWN
-
-                case Status.WAIT:
-                    pass
 
     def start(self, duration):
         xy = self.maze.get_entrance()

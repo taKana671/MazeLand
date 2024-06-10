@@ -50,7 +50,7 @@ class MazeWalker:
 
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
-
+        print(self.direction_np.get_hpr())
         self.body = Character()
         self.body.reparent_to(self.direction_np)
         self.direction_np.reparent_to(self.root_np)
@@ -62,20 +62,33 @@ class MazeWalker:
         self.max_acceleration = 15
         self.body_z = 0.5
 
-        self.total = 0
-        self.acceleration = 0
+        # self.total = 0
+        # self.acceleration = 0
 
         self.sensors = [sensor for sensor in self.create_sensors()]
-
         self.orient = -1
-        xy = self.maze.get_exit()
-        self.set_pos(Point3(xy, -8.5))
+
+        self.initialize()
+        # xy = self.maze.get_exit()
+        # self.set_pos(Point3(xy, -8.5))
 
         # xy = self.maze.get_entrance()
         # xy += Point2(0, 2)
         # self.set_pos(Point3(xy, -8.5))
 
+        # self.state = None
+
+    def initialize(self):
+        self.total = 0
+        self.acceleration = 0
         self.state = None
+
+        xy = self.maze.get_exit()
+        hit = self.cast_ray_downward(Point3(xy, 0), from_delta=30, to_delta=-30)
+        z = hit.get_hit_pos().z + self.body_z
+
+        self.direction_np.set_hpr(Vec3(0, 0, 0))
+        self.root_np.set_pos(Point3(xy, z))
 
     def create_sensors(self):
         for direction in Direction.around():

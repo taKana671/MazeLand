@@ -47,8 +47,9 @@ class MazeBuilder:
         self.np_walls.set_pos(0, 0, -12)
 
     def get_maze_pos(self):
-        child = self.np_walls.get_children()[0]
-        return child.get_pos()
+        return self.np_walls.get_pos()
+        # child = self.np_walls.get_children()[0]
+        # return child.get_pos()
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
@@ -117,7 +118,7 @@ class MazeBuilder:
 
         np_brick.set_texture(tex_brick)
         np_stone.set_texture(tex_stone)
-        self.np_walls.flatten_strong()
+        # self.np_walls.flatten_strong()
 
     def make_block(self, name, pos, scale, mask, hide=False, parent=None):
         if parent is None:
@@ -138,6 +139,11 @@ class MazeBuilder:
             return True
 
     def destroy(self):
-        for block in self.np_walls.get_child(0).get_children():
-            self.world.remove(block.node())
-            block.remove_node()
+        for np in self.np_walls.get_children():
+            for block in np.get_children():
+                self.world.remove(block.node())
+            np.remove_node()
+
+        # for block in self.np_walls.get_child(0).get_children():
+        #     self.world.remove(block.node())
+        #     block.remove_node()
