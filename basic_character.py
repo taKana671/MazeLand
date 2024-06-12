@@ -77,10 +77,9 @@ class Sensor(NodePath):
         pos = direction.get_vector(orient) * dist
         self.set_pos(pos)
 
-    def detect_obstacles(self, pos_from, bit=2):
+    def detect_obstacles(self, pos_from, mask):
         pos_to = self.get_pos(base.render)
 
         if (result := self.world.ray_test_closest(
-                pos_from, pos_to, mask=BitMask32.bit(bit))).has_hit():
-            # print(result.get_node().get_name())
+                pos_from, pos_to, mask=mask)).has_hit():
             return result

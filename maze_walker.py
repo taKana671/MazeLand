@@ -43,7 +43,7 @@ class PassingPoints(NamedTuple):
 
 class MazeWalker:
 
-    def __init__(self, world, maze_builder, walker_q):
+    def __init__(self, world, maze_builder, walker_q, orient=-1):
         self.world = world
         self.maze = maze_builder
         self.trace_q = walker_q
@@ -66,7 +66,7 @@ class MazeWalker:
         # self.acceleration = 0
 
         self.sensors = [sensor for sensor in self.create_sensors()]
-        self.orient = -1
+        self.orient = orient
 
         self.initialize()
         # xy = self.maze.get_exit()
@@ -83,11 +83,12 @@ class MazeWalker:
         self.acceleration = 0
         self.state = None
 
+    def set_up(self):
+        self.direction_np.set_hpr(Vec3(0, 0, 0))
+
         xy = self.maze.get_exit()
         hit = self.cast_ray_downward(Point3(xy, 0), from_delta=30, to_delta=-30)
         z = hit.get_hit_pos().z + self.body_z
-
-        self.direction_np.set_hpr(Vec3(0, 0, 0))
         self.root_np.set_pos(Point3(xy, z))
 
     def create_sensors(self):
@@ -139,7 +140,7 @@ class MazeWalker:
         pos_from = self.root_np.get_pos()
         for sensor in self.sensors:
             if direction == sensor.direction:
-                if not sensor.detect_obstacles(pos_from, bit=4):
+                if not sensor.detect_obstacles(pos_from, mask=BitMask32.bit(4)):
                     return True
 
     def cast_ray_downward(self, pos, from_delta=3, to_delta=-10, mask=BitMask32.bit(1)):

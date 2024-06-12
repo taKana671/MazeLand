@@ -14,8 +14,8 @@ class AirFrame(NodePath):
 
     def __init__(self, body_color):
         super().__init__(BulletRigidBodyNode(body_color.name.lower()))
-        # self.set_collide_mask(BitMask32.bit(2))
-        self.set_collide_mask(BitMask32.bit(5))
+        self.set_collide_mask(BitMask32.bit(2))
+        # self.set_collide_mask(BitMask32.bit(5))
         self.node().set_kinematic(True)
         self.node().set_ccd_motion_threshold(1e-7)
         self.node().set_ccd_swept_sphere_radius(0.5)
@@ -51,10 +51,12 @@ class AirFrame(NodePath):
 class Aircraft:
     # self, world, maze_builder, body_color, offset
 
-    def __init__(self, world, maze_builder, body_color, offset, linear_velocity=5, angular_velocity=100):
+    def __init__(self, world, maze_builder, body_color, mask,
+                 orient=1, linear_velocity=5, angular_velocity=100):
         self.world = world
         self.maze = maze_builder
-        self.offset = offset
+        self.mask = mask
+        self.orient = orient
 
         self.root_np = NodePath('root')
         self.direction_np = NodePath('direction')
@@ -94,10 +96,22 @@ class Aircraft:
         self.stop = False
         self.state = None
 
-        xy = self.maze.get_entrance() + self.offset
+    def set_up(self):
         self.start_z = self.maze.wall_size.z - 0.5 + self.maze.get_maze_pos().z
-        self.set_pos(Point3(xy, self.start_z))
-        print('aircraft pos', Point3(xy, self.start_z))
+        xy = self.maze.get_entrance() + Vec2(0, self.maze.wall_size.y)
+        
+        if self.orient == 1:
+            xy.x *= -1
+            self.direction_np.set_hpr(Vec3(0, 0, 0))
+        elif self.orient == -1:
+            xy.y *= -1
+            self.direction_np.set_hpr(Vec3(180, 0, 0))
+
+        # if not entrance_side:
+        #     xy.x *= -1
+
+        self.set_pos(Point3(xy, self.start_z + 2))
+        # print('aircraft pos', Point3(xy, self.start_z + 2))
 
     def set_pos(self, pos):
         self.root_np.set_pos(pos)
@@ -138,7 +152,7 @@ class Aircraft:
         pos_from = self.get_pos()
 
         for sensor in self.sensors:
-            if not sensor.detect_obstacles(pos_from):
+            if not sensor.detect_obstacles(pos_from, mask=BitMask32.bit(2) | BitMask32.bit(self.mask)):
                 yield sensor.direction
 
     def turn(self, rotate_direction, dt, max_angle=90):
@@ -165,7 +179,8 @@ class Aircraft:
 
         self.set_pos(self.get_pos() + forward_vector * distance)
 
-    def check_downward(self, n=5):
+    # def check_downward(self, n=5):
+    def check_downward(self, n=2):
         current_pos = self.root_np.get_pos()
         below_pos = current_pos - Vec3(0, 0, 2)
 
@@ -203,9 +218,12 @@ class Aircraft:
         return self.root_np.get_relative_point(self.direction_np, pos)
 
     def close_route(self):
-        pos = self.get_backward_pos(2.)
+        backward_pos = self.get_backward_pos(2.)
+        z = self.start_z - self.maze.get_maze_pos().z
+        pos = Point3(backward_pos.xy, z)
         scale = Vec3(self.maze.wall_size.xy, 1)
-        mask = BitMask32.bit(2)
+        # mask = BitMask32.bit(2)
+        mask = BitMask32.bit(self.mask)
         self.maze.make_block('closed', pos, scale, mask, True)
 
     def change_direction(self):
@@ -277,7 +295,8 @@ class Aircraft:
                         self.state = Status.LIFT_DOWN
 
     def start(self, duration):
-        xy = self.maze.get_entrance()
+        # xy = self.maze.get_entrance()
+        xy = self.root_np.get_pos().xy
         pos = Point3(xy, self.start_z)
 
         def _start():

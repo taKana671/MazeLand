@@ -153,7 +153,8 @@ class GoalGate(NodePath):
 
     def setup(self, gate_pos, gate_angle=180):
         self.set_h(gate_angle)
-        self.set_pos(gate_pos)
+        # self.set_pos(gate_pos)
+        self.poles.set_pos(base.render, gate_pos)
         self.create_banner()
 
     def destroy(self):

@@ -44,6 +44,7 @@ class MazeBuilder:
         # self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(parent)
+        # self.np_walls.reparent_to(base.render)
         self.np_walls.set_pos(0, 0, -12)
 
     def get_maze_pos(self):
@@ -130,6 +131,9 @@ class MazeBuilder:
 
         if hide:
             block.hide()
+            # tex_brick = base.loader.load_texture('textures/brick.jpg')
+            # block.set_texture(tex_brick)
+            # # import pdb; pdb.set_trace()
 
     def is_outside(self, pt2):
         upper = self.top_left.y + self.wall_size.y / 2
