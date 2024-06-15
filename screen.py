@@ -8,10 +8,21 @@ from direct.interval.IntervalGlobal import Sequence, Func
 
 class Frame(DirectFrame):
 
-    def __init__(self, parent):
-        super().__init__(parent=parent)
+    # def __init__(self, parent):
+    #     super().__init__(parent=parent)
+    #     self.initialiseoptions(type(self))
+    #     self.buttons = []
+
+    def __init__(self):
+        super().__init__(parent=base.aspect2d)
         self.initialiseoptions(type(self))
         self.buttons = []
+
+    def display(self, show=True):
+        if show:
+            self.reparent_to(base.aspect2d)
+        else:
+            self.detach_node()
 
 
 class Label(DirectLabel):
@@ -82,11 +93,21 @@ class Button(DirectButton):
 
 class Screen:
 
-    def __init__(self, frame):
-        self.frame = frame
+    def __init__(self):
+        self.frame = None
+
         self.color_in = LColor(0, 0, 0, 0.9)
         self.color_out = LColor(0, 0, 0, 0)
         self.create_screen()
+
+    # def add_frame(self, frame_name, frame, show=False):
+    #     self.frames[frame_name] = frame
+
+    #     if not show:
+    #         frame.display(False)
+
+    # def switch_frames(self, frame_name):
+    #     self.frame = self.frames[frame_name]
 
     def create_screen(self):
         cm = CardMaker('card')
@@ -110,9 +131,13 @@ class Screen:
         ).start()
 
     def hide(self):
-        self.frame.hide()
-        self.background.hide()
+        # self.frame.hide()
+        # self.background.hide()
+        self.frame.display(False)
+        self.background.detach_node()
 
     def show(self):
-        self.frame.show()
-        self.background.show()
+        # self.frame.show()
+        # self.background.show()
+        self.frame.display(True)
+        self.background.reparent_to(base.render2d)

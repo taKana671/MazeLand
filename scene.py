@@ -221,7 +221,7 @@ class Scene:
     def build_maze(self, rows=21, cols=21):
         self.maze.setup(rows, cols)
         # make goal gate.
-        xy = self.maze.get_entrance()
+        xy = self.maze.get_exit()
         gate_pos = Point3(xy, self.maze.get_maze_pos().z + 2)
         self.goal_gate.setup(gate_pos)
 

@@ -29,7 +29,7 @@ class Status(Enum):
     LIFT_DOWN = auto()
     CHECK_DOWNWARD = auto()
     READY = auto()
-    CLEAN_UP = auto()
+    INITIALIZE = auto()
 
 
 class Direction(Enum):

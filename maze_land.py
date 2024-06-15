@@ -14,6 +14,7 @@ from scene import Scene
 from aircraft import Aircraft
 from maze_walker import MazeWalker
 from basic_character import Direction, Status, BodyColor
+from create_maze_3d import Corners
 from screen import Screen, Button, Frame, Label
 
 
@@ -29,41 +30,27 @@ load_prc_file_data("", """
 class CameraController:
 
     def __init__(self, camera, walker_q, floater):
-    # def __init__(self, walker_q, floater_parent):
         self.walker_q = walker_q
-
         self.floater = floater
         self.camera = camera
-
-        # self.floater = NodePath('floater')
-        # self.floater.set_z(1)   # 3
-        # self.floater.reparent_to(floater_parent)
-
-        self.state = Status.STOP
-        self.total_distance = 0
+        self.z_diff = 1
         self.trace_q = deque()
-
-    def get_camera_z(self, walker_pos):
-        return walker_pos.z + 1
-
-    def set_up(self, pos):
-        self.trace_q.append(pos.xy)
-        self.camera.set_pos(pos)
-        self.camera.look_at(self.floater)
+        self.initialize()
 
     def initialize(self):
         self.state = Status.STOP
         self.total_distance = 0
         self.trace_q.clear()
 
-        # self.trace_q.append(pos.xy)
-        # self.camera.set_pos(pos)
-        # self.camera.look_at(self.floater)
+    def set_up(self, pos):
+        self.trace_q.append(pos.xy)
+        self.camera.set_pos(pos)
+        self.camera.look_at(self.floater)
 
     def move(self, dt, walker_pos, max_distance=2):
         distance = dt * 2
         camera_xy = self.camera.get_pos().xy
-        camera_z = self.get_camera_z(walker_pos)
+        camera_z = walker_pos.z + self.z_diff
 
         if (total := self.total_distance + distance) >= max_distance:
             diff = max_distance - self.total_distance
@@ -112,7 +99,7 @@ class CameraController:
         match walker_state:
 
             case Status.DO_JUMP:
-                z = self.get_camera_z(walker_pos)
+                z = walker_pos.z + self.z_diff
                 self.camera.set_z(z)
 
             case Status.CRASH:
@@ -132,18 +119,15 @@ class MazeLand(ShowBase):
         self.world = BulletWorld()
         self.world.set_gravity(Vec3(0, 0, -9.81))
         self.scene = Scene(self.world)
-        # self.scene.build_maze()
 
-        self.aircraft_1 = Aircraft(self.world, self.scene.maze, BodyColor.BLUE, orient=-1, mask=5)
-        self.aircraft_2 = Aircraft(self.world, self.scene.maze, BodyColor.RED, mask=6)
+        self.aircraft_1 = Aircraft(self.world, self.scene.maze, BodyColor.BLUE, bit=6)
+        self.aircraft_2 = Aircraft(self.world, self.scene.maze, BodyColor.RED, bit=7)
 
         self.walker_q = deque()
         self.walker = MazeWalker(self.world, self.scene.maze, self.walker_q)
         self.floater = NodePath('floater')
         self.floater.set_z(1)   # 3
         self.floater.reparent_to(self.walker.body)
-
-        # self.camera_controller = CameraController(self.walker_q, self.walker.body)
 
         # self.create_display_regions()
         self.split_screen()
@@ -172,21 +156,45 @@ class MazeLand(ShowBase):
 
     def create_gui(self):
         font = self.loader.loadFont('font/Candaral.ttf')
+        self.screen = Screen()
 
-        self.again_frame = Frame(self.aspect2d)
+        def _initialize():
+            self.state = Status.INITIALIZE
+
+        self.again_frame = Frame()
         Label(self.again_frame, 'Try Again', (0, 0, 0.3), font)
-        # Button(self.again_frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_again), focus=True)
-        Button(self.again_frame, 'START', (0, 0, 0), font, command=self.initialize, focus=True)
+        Button(self.again_frame, 'START', (0, 0, 0), font, command=_initialize, focus=True)
         Button(self.again_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
-        self.again_frame.hide()
+        self.again_frame.display(False)
 
-        start_frame = Frame(self.aspect2d)
+        start_frame = Frame()
         Label(start_frame, 'Maze Land', (0, 0, 0.3), font)
         Button(start_frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game), focus=True)
         Button(start_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+        self.screen.frame = start_frame
 
-        self.screen = Screen(start_frame)
-        self.screen.show()
+
+    # def create_gui(self):
+    #     font = self.loader.loadFont('font/Candaral.ttf')
+
+
+    #     def _initialize():
+    #         self.state = Status.INITIALIZE
+
+    #     self.again_frame = Frame(self.aspect2d)
+    #     Label(self.again_frame, 'Try Again', (0, 0, 0.3), font)
+    #     Button(self.again_frame, 'START', (0, 0, 0), font, command=_initialize, focus=True)
+    #     Button(self.again_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+    #     self.again_frame.hide()
+
+    #     start_frame = Frame(self.aspect2d)
+    #     Label(start_frame, 'Maze Land', (0, 0, 0.3), font)
+    #     Button(start_frame, 'START', (0, 0, 0), font, command=lambda: self.screen.fade_out(self.start_game), focus=True)
+    #     Button(start_frame, 'EXIT', (0, 0, -0.2), font, command=sys.exit)
+    #     # start_frame.detach_node()
+
+    #     self.screen = Screen(start_frame)
+    #     self.screen.show()
 
     def finish(self):
         def _finish():
@@ -197,50 +205,30 @@ class MazeLand(ShowBase):
         self.ignore('escape')
         self.screen.frame = self.again_frame
         self.screen.fade_in(_finish)
-        # self.screen.fade_in(self.accept, 'escape', sys.exit)
 
     def set_up_game(self):
         self.scene.build_maze()
 
         self.walker.set_up()
-        cam_pos = self.walker.navigate(Point3(0, 2, 1)) + self.walker.get_pos()
+        y = self.scene.maze.wall_size.y
+        cam_pos = self.walker.navigate(Point3(0, y, 1))
         self.camera_controller.set_up(cam_pos)
 
-        self.aircraft_1.set_up()
-        self.aircraft_2.set_up()
+        self.aircraft_1.set_up(Corners.TOP_RIGHT)
+        self.aircraft_2.set_up(Corners.BOTTOM_LEFT)
 
-    # def initialize(self):
-    #     self.scene.build_maze()
-
-    #     self.walker_q.clear()
-    #     self.accident_aircrafts.clear()
-    #     self.walker_state = None
-    #     self.aircrafts_state = None
-    #     self.state = None
-
-    #     for player in [self.walker, self.aircraft_1, self.aircraft_2]:
-    #         player.initialize()
-
-    #     y = self.scene.maze.wall_size.y
-    #     cam_pos = self.walker.navigate(Point3(0, y, 1)) + self.walker.get_pos()
-    #     self.camera_controller.initialize(cam_pos)
-
-    #     self.screen.fade_out(self.start_game)
-
-
-    # def clean_up(self):
     def initialize(self):
-        for obj in [self.walker, self.aircraft_1, self.aircraft_2, self.camera_controller]:
-            obj.initialize()
-
         self.scene.destroy_maze()
-        self.state = Status.CLEAN_UP
+        self.walker_q.clear()
+        self.walker.initialize()
+        self.aircraft_1.initialize()
+        self.aircraft_2.initialize()
+        self.camera_controller.initialize()
 
     def start_game(self):
         self.accept('escape', sys.exit)
-        self.walker.start()
         self.aircrafts_state = Status.READY
-        self.walker_state = Status.PLAY
+        self.walker_state = Status.READY
 
     def calc_aspect_ratio(self, window_size, display_region):
         """Return aspect ratio.
@@ -265,14 +253,13 @@ class MazeLand(ShowBase):
     def split_screen(self):
         props = self.win.get_properties()
         window_size = props.get_size()
-        rel_y = self.scene.maze.wall_size.y
 
         # make split screen for aircrafts
-        rel_pos = Point3(0, -rel_y, 5)
+        rel_pos = Point3(0, -self.scene.maze.wall_size.y, 5)
 
         aircraft_regions = [
-            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; Vec4(0., 0.5, 0.75, 1); 0.5 - 0.001 to make white line.
-            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; Vec4(0.5., 1, 0.75, 1); 0.5 + 0.001 to make white line.
+            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; 0.499 = 0.5 - 0.001; to make white line.
+            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; 0.501 =  0.5 + 0.001; to make white line.
         ]
 
         for aircraft, region in aircraft_regions:
@@ -282,17 +269,11 @@ class MazeLand(ShowBase):
             cam.reparent_to(aircraft.root_np)
             cam.look_at(aircraft.body)
 
-        # make split screen walker
-        cam_pos = self.walker.navigate(Point3(0, rel_y, 1)) + self.walker.get_pos()
-
-        region = Vec4(0, 1, 0, 0.748)  # Vec4(0., 0.5, 0.75, 1); 0.75 - 0.002 to make white line.
+        # make split screen for walker
+        region = Vec4(0, 1, 0, 0.748)  # 0.748 =0.75 - 0.002 to make white line.
         cam = self.create_split_screen_camera(region, window_size, near=0.5)
         cam.reparent_to(self.render)
-
         self.camera_controller = CameraController(cam, self.walker_q, self.floater)
-        # self.camera_controller.initialize(cam_pos)
-        # self.camera_controller.setup_camera(cam, cam_pos)
-
         self.camNode.set_active(False)
 
     def create_split_screen_camera(self, region, window_size, fov=90, near=1, far=100000):
@@ -311,14 +292,13 @@ class MazeLand(ShowBase):
     def create_display_regions(self):
         props = self.win.get_properties()
         window_size = props.get_size()
-        rel_y = self.scene.maze.wall_size.y
 
         # make split screen for aircrafts
-        rel_pos = Point3(0, -rel_y, 5)
+        rel_pos = Point3(0, -self.scene.maze.wall_size.y, 5)
 
         aircraft_regions = [
-            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; Vec4(0., 0.5, 0.75, 1); 0.5 - 0.001 to make white line.
-            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; Vec4(0.5., 1, 0.75, 1); 0.5 + 0.001 to make white line.
+            [self.aircraft_1, Vec4(0., 0.499, 0.75, 1)],  # left top; 0.499 = 0.5 - 0.001; to make white line.
+            [self.aircraft_2, Vec4(0.501, 1, 0.75, 1)]    # right top; 0.501 = 0.5 + 0.001; to make white line.
         ]
 
         for i, (aircraft, region) in enumerate(aircraft_regions):
@@ -327,18 +307,16 @@ class MazeLand(ShowBase):
             # needs set_sort if one region overlaps another.
             # display_region.set_sort(100 + i)
             display_region.set_camera(cam)
-            cam.set_pos(aircraft.get_relative_pos(rel_pos))  # Point3(0, -8, 6)
+            cam.set_pos(aircraft.get_relative_pos(rel_pos))
             cam.reparent_to(aircraft.root_np)
             cam.look_at(aircraft.body)
 
-        cam_pos = self.walker.navigate(Point3(0, rel_y, 1)) + self.walker.get_pos()
-        region = Vec4(0, 1, 0, 0.748)  # Vec4(0., 0.5, 0.75, 1); 0.75 - 0.002 to make white line.
+        region = Vec4(0, 1, 0, 0.748)  # 0.748 = 0.75 - 0.002; to make white line.
         display_region = self.win.make_display_region(region)
         cam = self.create_region_camera('cam_walker', region, window_size, near=0.5)
         display_region.set_camera(cam)
         cam.reparent_to(self.render)
-        self.camera_controller.setup_camera(cam, cam_pos)
-
+        self.camera_controller = CameraController(cam, self.walker_q, self.floater)
         self.camNode.set_active(False)
 
     def create_region_camera(self, name, region, window_size, fov=90, near=1, far=100000):
@@ -357,7 +335,8 @@ class MazeLand(ShowBase):
             self.debug.hide()
 
     def print_info(self):
-        print('walker_pos', self.walker_controller.walker_pos)
+        pass
+        # print('walker_pos', self.walker_controller.walker_pos)
 
     def get_key_input(self):
         direction = None
@@ -377,8 +356,8 @@ class MazeLand(ShowBase):
 
     def control_walker(self, dt):
         direction = self.get_key_input()
-        self.walker.update(direction, dt)
-        self.camera_controller.update(dt, self.walker.get_pos(), self.walker.state)
+        walker_pos = self.walker.update(direction, dt)
+        self.camera_controller.update(dt, walker_pos, self.walker.state)
 
         match self.walker_state:
 
@@ -402,6 +381,10 @@ class MazeLand(ShowBase):
                     self.accident_aircrafts.clear()
                     self.walker_state = Status.PLAY
 
+            case Status.READY:
+                self.walker.state = Status.STOP
+                self.walker_state = Status.PLAY
+
     def control_aircrafts(self, dt):
         self.aircraft_1.update(dt)
         self.aircraft_2.update(dt)
@@ -413,14 +396,12 @@ class MazeLand(ShowBase):
                     ascend = False
 
                     for aircraft in [self.aircraft_1, self.aircraft_2]:
-                        # aircraft.dead_end = False
 
                         if aircraft.state == Status.MOVE:
                             if not ascend:
                                 aircraft.state = Status.LIFT_UP
                                 ascend = True
                                 continue
-                            # aircraft.stop = True
 
                     self.aircrafts_state = Status.WAIT
 
@@ -443,21 +424,14 @@ class MazeLand(ShowBase):
         self.control_walker(dt)
 
         match self.state:
-            case Status.CLEAN_UP:
+            case Status.INITIALIZE:
+                self.initialize()
                 self.state = Status.READY
-
-            # case Status.STOP:
-            #     self.scene.build_maze()
-            #     xy = self.scene.maze.get_entrance()
-            #     xy += Vec2(0, 2)
-            #     self.walker.root_np.set_pos(Point3(xy, -8.5))
-            #     self.state = None
 
             case Status.READY:
                 self.set_up_game()
                 self.screen.fade_out(self.start_game)
                 self.state = None
-
 
         self.world.do_physics(dt)
         return task.cont

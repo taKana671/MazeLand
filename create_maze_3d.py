@@ -1,10 +1,20 @@
 from typing import NamedTuple
+from enum import Enum, auto
+
 from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape, BulletConvexHullShape
 from panda3d.core import NodePath, TextureStage
 from panda3d.core import Vec3, Point3, BitMask32, Point2, Vec2
 
 from create_maze_2d import WallExtendingAlgorithm
 from create_geomnode import Cube
+
+
+class Corners(Enum):
+
+    TOP_LEFT = auto()
+    BOTTOM_LEFT = auto()
+    TOP_RIGHT = auto()
+    BOTTOM_RIGHT = auto()
 
 
 class Block(NodePath):
@@ -44,7 +54,6 @@ class MazeBuilder:
         # self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(parent)
-        # self.np_walls.reparent_to(base.render)
         self.np_walls.set_pos(0, 0, -12)
 
     def get_maze_pos(self):
@@ -72,10 +81,14 @@ class MazeBuilder:
         self.rows = rows if rows % 2 != 0 else rows - 1
         self.cols = cols if cols % 2 != 0 else cols - 1
 
-        self.entrance = Space(self.rows - 1, self.cols - 2)
-        self.exit = Space(0, 1)
+        self.exit = Space(self.rows - 1, self.cols - 2)
+        self.entrance = Space(0, 1)
+        # self.exit = Space(0, 1)
         self.top_left = self.space_to_cartesian(0, 0)
         self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
+        self.top_right = self.space_to_cartesian(0, self.cols - 1)
+        self.bottom_left = self.space_to_cartesian(self.rows - 1, 0)
+
         self.build()
 
     def build(self):
@@ -84,9 +97,15 @@ class MazeBuilder:
         # config = types.SimpleNamespace(wall=1, aisle=0, extending=2)
 
         np_brick = NodePath('brick')
-        np_brick.reparent_to(self.np_walls)
         np_stone = NodePath('stone')
-        np_stone.reparent_to(self.np_walls)
+        np_closure = NodePath('closure')
+
+        for np in [np_brick, np_stone, np_closure]:
+            np.reparent_to(self.np_walls)
+
+        # np_brick.reparent_to(self.np_walls)
+        # np_stone.reparent_to(self.np_walls)
+        # np_closure.reparent_to(self.np_walls)
 
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
         stone_size = Vec3(self.wall_size.xy, 0.25)
@@ -99,12 +118,13 @@ class MazeBuilder:
                     xy = self.space_to_cartesian(r, c)
 
                     match (r, c):
-                        case self.entrance:
-                            mask = BitMask32.bit(2)
-                            hide = True
                         case self.exit:
-                            mask = BitMask32.bit(3) | BitMask32.bit(4)
-                            xy += Vec2(0, self.wall_size.y)
+                            mask = BitMask32.bit(3)
+                            # mask = BitMask32.bit(2)
+                            hide = True
+                        case self.entrance:
+                            # mask = BitMask32.bit(3) | BitMask32.bit(4)
+                            mask = BitMask32.bit(2) | BitMask32.bit(4)
                             hide = True
                         case _:
                             mask = BitMask32.bit(2) | BitMask32.bit(4)
@@ -119,11 +139,13 @@ class MazeBuilder:
 
         np_brick.set_texture(tex_brick)
         np_stone.set_texture(tex_stone)
+        # import pdb; pdb.set_trace()
         # self.np_walls.flatten_strong()
 
     def make_block(self, name, pos, scale, mask, hide=False, parent=None):
         if parent is None:
-            parent = self.np_walls
+            parent = self.np_walls.find('closure')
+            # parent = self.np_walls
 
         block = Block(name, pos, scale, mask)
         block.reparent_to(parent)
@@ -134,6 +156,9 @@ class MazeBuilder:
             # tex_brick = base.loader.load_texture('textures/brick.jpg')
             # block.set_texture(tex_brick)
             # # import pdb; pdb.set_trace()
+
+        return block
+
 
     def is_outside(self, pt2):
         upper = self.top_left.y + self.wall_size.y / 2
@@ -146,8 +171,5 @@ class MazeBuilder:
         for np in self.np_walls.get_children():
             for block in np.get_children():
                 self.world.remove(block.node())
+                block.remove_node()
             np.remove_node()
-
-        # for block in self.np_walls.get_child(0).get_children():
-        #     self.world.remove(block.node())
-        #     block.remove_node()
