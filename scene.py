@@ -1,20 +1,16 @@
-import pathlib
-
-from panda3d.bullet import BulletRigidBodyNode, BulletPlaneShape, BulletConvexHullShape
 from panda3d.bullet import BulletRigidBodyNode, BulletSoftBodyNode
-from panda3d.bullet import BulletSphereShape, BulletHeightfieldShape, ZUp
+from panda3d.bullet import BulletConvexHullShape, BulletHeightfieldShape, ZUp
 from panda3d.bullet import BulletHelper
 from panda3d.core import NodePath, PandaNode
-from panda3d.core import Vec3, Point3, Vec2, CardMaker
+from panda3d.core import Vec3, Point3, BitMask32, LColor
 from panda3d.core import Filename, PNMImage
 from panda3d.core import Shader
 from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
 from panda3d.core import GeomNode, GeomVertexFormat
-from panda3d.core import BitMask32, Vec3, LColor
 
 from create_geomnode import Cylinder
-from create_maze_3d import MazeBuilder, Space
+from create_maze_3d import MazeBuilder
 from lights import BasicAmbientLight, BasicDayLight
 
 
@@ -139,21 +135,15 @@ class Poles(NodePath):
 
 class GoalGate(NodePath):
 
-    # def __init__(self, world, gate_pos, gate_angle=180, gate_w=4, pole_h=4):
     def __init__(self, world, gate_w=4, pole_h=4):
         super().__init__(PandaNode('goal_gate'))
         self.world = world
         self.gate_w = gate_w
         self.pole_h = pole_h
         self.create_poles()
-        # self.set_h(gate_angle)
-        # self.set_pos(gate_pos)
-
-        # self.create_poles(gate_w, pole_h)
 
     def setup(self, gate_pos, gate_angle=180):
         self.set_h(gate_angle)
-        # self.set_pos(gate_pos)
         self.poles.set_pos(base.render, gate_pos)
         self.create_banner()
 
@@ -168,7 +158,6 @@ class GoalGate(NodePath):
         self.poles.reparent_to(self)
         self.world.attach(self.poles.node())
 
-    # def create_banner(self, pole_h):
     def create_banner(self):
         info = self.world.get_world_info()
         info.set_air_density(1.2)

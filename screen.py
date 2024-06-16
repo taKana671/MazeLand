@@ -8,11 +8,6 @@ from direct.interval.IntervalGlobal import Sequence, Func
 
 class Frame(DirectFrame):
 
-    # def __init__(self, parent):
-    #     super().__init__(parent=parent)
-    #     self.initialiseoptions(type(self))
-    #     self.buttons = []
-
     def __init__(self):
         super().__init__(parent=base.aspect2d)
         self.initialiseoptions(type(self))
@@ -93,21 +88,12 @@ class Button(DirectButton):
 
 class Screen:
 
-    def __init__(self):
-        self.frame = None
+    def __init__(self, default_frame):
+        self.frame = default_frame
 
         self.color_in = LColor(0, 0, 0, 0.9)
         self.color_out = LColor(0, 0, 0, 0)
         self.create_screen()
-
-    # def add_frame(self, frame_name, frame, show=False):
-    #     self.frames[frame_name] = frame
-
-    #     if not show:
-    #         frame.display(False)
-
-    # def switch_frames(self, frame_name):
-    #     self.frame = self.frames[frame_name]
 
     def create_screen(self):
         cm = CardMaker('card')
@@ -118,26 +104,16 @@ class Screen:
 
     def fade_out(self, callback, *args, **kwargs):
         Sequence(
-            Func(self.frame.hide),
+            Func(self.frame.display, False),
             self.background.colorInterval(1.0, self.color_out),
+            Func(self.background.detach_node),
             Func(callback, *args, **kwargs)
         ).start()
 
     def fade_in(self, callback, *args, **kwargs):
         Sequence(
+            Func(self.background.reparent_to, base.render2d),
             self.background.colorInterval(1.0, self.color_in),
-            Func(self.frame.show),
+            Func(self.frame.display, True),
             Func(callback, *args, **kwargs)
         ).start()
-
-    def hide(self):
-        # self.frame.hide()
-        # self.background.hide()
-        self.frame.display(False)
-        self.background.detach_node()
-
-    def show(self):
-        # self.frame.show()
-        # self.background.show()
-        self.frame.display(True)
-        self.background.reparent_to(base.render2d)
