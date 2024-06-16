@@ -208,8 +208,6 @@ class Aircraft:
         scale = Vec3(self.maze.wall_size.xy, 1)
 
         _ = self.maze.make_block('closed', pos, scale, self.mask, True)
-        # block.set_color(self.body_color.value)
-        # block.show()
 
     def change_to_movement(self, direction):
         match direction:
@@ -261,17 +259,14 @@ class Aircraft:
                         self.state = self.get_next_movement()
 
                 case Status.LEFT_TURN:
-                    # if self.turn(Direction.LEFTWARD.get_direction(), dt):
                     if self.turn(Direction.LEFTWARD, dt):
                         self.state = Status.MOVE
 
                 case Status.RIGHT_TURN:
-                    # if self.turn(Direction.RIGHTWARD.get_direction(), dt):
                     if self.turn(Direction.RIGHTWARD, dt):
                         self.state = Status.MOVE
 
                 case Status.U_TURN:
-                    # if self.turn(Direction.LEFTWARD.get_direction(), dt, 180):
                     if self.turn(Direction.LEFTWARD, dt, 180):
                         self.state = Status.MOVE
 

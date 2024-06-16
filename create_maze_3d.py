@@ -1,9 +1,9 @@
 from typing import NamedTuple
 from enum import Enum, auto
 
-from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape, BulletConvexHullShape
+from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape
 from panda3d.core import NodePath, TextureStage
-from panda3d.core import Vec3, Point3, BitMask32, Point2, Vec2
+from panda3d.core import Vec3, Point3, BitMask32, Point2
 
 from create_maze_2d import WallExtendingAlgorithm
 from create_geomnode import Cube
@@ -41,25 +41,15 @@ class Space(NamedTuple):
 
 class MazeBuilder:
 
-    # def __init__(self, world, parent, rows, cols):
     def __init__(self, world, parent):
         self.world = world
         self.wall_size = Vec3(2, 2, 4)
-        # self.rows = rows if rows % 2 != 0 else rows - 1
-        # self.cols = cols if cols % 2 != 0 else cols - 1
-
-        # self.entrance = Space(self.rows - 1, self.cols - 2)
-        # self.exit = Space(0, 1)
-        # self.top_left = self.space_to_cartesian(0, 0)
-        # self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
         self.np_walls = NodePath('walls')
         self.np_walls.reparent_to(parent)
         self.np_walls.set_pos(0, 0, -12)
 
     def get_maze_pos(self):
         return self.np_walls.get_pos()
-        # child = self.np_walls.get_children()[0]
-        # return child.get_pos()
 
     def get_entrance(self):
         return self.space_to_cartesian(*self.entrance)
@@ -81,13 +71,12 @@ class MazeBuilder:
         self.rows = rows if rows % 2 != 0 else rows - 1
         self.cols = cols if cols % 2 != 0 else cols - 1
 
-        self.exit = Space(self.rows - 1, self.cols - 2)
-        self.entrance = Space(0, 1)
-        # self.exit = Space(0, 1)
         self.top_left = self.space_to_cartesian(0, 0)
         self.bottom_right = self.space_to_cartesian(self.rows - 1, self.cols - 1)
         self.top_right = self.space_to_cartesian(0, self.cols - 1)
         self.bottom_left = self.space_to_cartesian(self.rows - 1, 0)
+        self.entrance = (0, 1)
+        self.exit = (self.rows - 1, self.cols - 2)
 
         self.build()
 
@@ -103,10 +92,6 @@ class MazeBuilder:
         for np in [np_brick, np_stone, np_closure]:
             np.reparent_to(self.np_walls)
 
-        # np_brick.reparent_to(self.np_walls)
-        # np_stone.reparent_to(self.np_walls)
-        # np_closure.reparent_to(self.np_walls)
-
         grid = WallExtendingAlgorithm(self.rows, self.cols).create_maze()
         stone_size = Vec3(self.wall_size.xy, 0.25)
         brick_z = self.wall_size.z / 2
@@ -120,10 +105,8 @@ class MazeBuilder:
                     match (r, c):
                         case self.exit:
                             mask = BitMask32.bit(3)
-                            # mask = BitMask32.bit(2)
                             hide = True
                         case self.entrance:
-                            # mask = BitMask32.bit(3) | BitMask32.bit(4)
                             mask = BitMask32.bit(2) | BitMask32.bit(4)
                             hide = True
                         case _:
@@ -139,13 +122,10 @@ class MazeBuilder:
 
         np_brick.set_texture(tex_brick)
         np_stone.set_texture(tex_stone)
-        # import pdb; pdb.set_trace()
-        # self.np_walls.flatten_strong()
 
     def make_block(self, name, pos, scale, mask, hide=False, parent=None):
         if parent is None:
             parent = self.np_walls.find('closure')
-            # parent = self.np_walls
 
         block = Block(name, pos, scale, mask)
         block.reparent_to(parent)
@@ -153,12 +133,8 @@ class MazeBuilder:
 
         if hide:
             block.hide()
-            # tex_brick = base.loader.load_texture('textures/brick.jpg')
-            # block.set_texture(tex_brick)
-            # # import pdb; pdb.set_trace()
 
         return block
-
 
     def is_outside(self, pt2):
         upper = self.top_left.y + self.wall_size.y / 2
