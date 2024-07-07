@@ -14,7 +14,7 @@ from scene import Scene
 from aircraft import Aircraft
 from maze_walker import MazeWalker
 from basic_character import Direction, Status, BodyColor
-from create_maze_3d import Corners
+from create_maze3d import Corners
 from screen import Screen, Button, Frame, Label
 
 
