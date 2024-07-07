@@ -9,7 +9,7 @@ from direct.interval.IntervalGlobal import Sequence, Func
 from create_geomnode import SphericalShape, RightTriangularPrism
 from utils import create_line_node
 from basic_character import Status, Direction, Sensor
-from create_maze_3d import Corners
+from create_maze3d import Corners
 
 
 class AirFrame(NodePath):

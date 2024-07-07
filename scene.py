@@ -10,7 +10,7 @@ from panda3d.core import GeoMipTerrain
 from panda3d.core import GeomNode, GeomVertexFormat
 
 from create_geomnode import Cylinder
-from create_maze_3d import MazeBuilder
+from create_maze3d import MazeBuilder
 from lights import BasicAmbientLight, BasicDayLight
 
 
