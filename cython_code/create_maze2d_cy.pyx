@@ -1,10 +1,8 @@
-# cython: profile=True
 import random
-cimport numpy as cnp
-import numpy as np
 
+import numpy as np
+cimport numpy as cnp
 from cython cimport boundscheck, wraparound
-from cython.parallel cimport prange
 
 
 DEF WALL = 1
@@ -16,7 +14,6 @@ cdef class WallExtendingAlgorithm:
 
     cdef:
         int rows, cols 
-
 
     def __init__(self, rows, cols):
         self.rows = rows
@@ -71,7 +68,7 @@ cdef class WallExtendingAlgorithm:
             int[:, ::1] grid_memv = grid
             int[4][2] directions = [[0, 1], [0, -1], [1, 0], [-1, 0]]
             int[2] d
-            int i
+            int idx
 
         while True:
 
@@ -88,8 +85,12 @@ cdef class WallExtendingAlgorithm:
                 x, y = org_x, org_y
                 continue
 
-            i = random.choice(extendables)
-            d = directions[i]
+            if len(extendables) == 1:
+                idx = extendables[0]
+            else:
+                idx = random.choice(extendables)
+            
+            d = directions[idx]
 
             grid_memv[y + d[1], x + d[0]] = EXTENDING
             x += d[0] * 2
