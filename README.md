@@ -7,8 +7,9 @@ I have wanted to try split screen. For this reason, I made this game. But what w
 
 # Requirements
 * Panda3D 1.10.13
+* Cython 0.29.37
 * numpy 1.23.5
-
+  
 # Environment
 * Python 3.11
 * Windows 11
@@ -27,3 +28,22 @@ I have wanted to try split screen. For this reason, I made this game. But what w
 * Press [down arrow] key to go back.
 * Press [Enter] key to jump.
 * Press [ D ] key to toggle debug ON and OFF.
+
+# Cython code
+To speed up maze algorithm, I used Cython language to convert Python code to C code.
+To build your Cython file, use the command below, which will leave in your local a so file in unix or pyd file in Windows.
+
+```
+>>>cd cython_code
+>>>python setup.py build_ext --inplace
+```
+
+```
+# python code (maze size is 155 * 155)
+36.4 ms ± 1.14 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+```
+# cython code (maze size is 155 * 155)
+18.2 ms ± 144 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+```
