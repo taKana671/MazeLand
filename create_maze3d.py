@@ -5,7 +5,7 @@ from panda3d.bullet import BulletRigidBodyNode, BulletBoxShape
 from panda3d.core import NodePath, TextureStage
 from panda3d.core import Vec3, Point3, BitMask32, Point2
 
-from create_geomnode import Cube
+from shapes.src import Box
 
 try:
     from create_maze2d_cy import WallExtendingAlgorithm
@@ -25,13 +25,13 @@ class Corners(Enum):
 
 class Block(NodePath):
 
-    def __init__(self, name, pos, scale, mask):
+    def __init__(self, name, pos, size, mask):
         super().__init__(BulletRigidBodyNode(name))
-        cube = Cube()
+        cube_maker = Box(width=size.x, depth=size.y, height=size.z)
+        cube = cube_maker.create()
         self.model = self.attach_new_node(cube.node())
 
         self.set_pos(pos)
-        self.set_scale(scale)
         self.set_collide_mask(mask)
 
         end, tip = self.model.get_tight_bounds()
@@ -89,7 +89,6 @@ class MazeBuilder:
     def build(self):
         tex_brick = base.loader.load_texture('textures/brick.jpg')
         tex_stone = base.loader.load_texture('textures/concrete2.jpg')
-        # config = types.SimpleNamespace(wall=1, aisle=0, extending=2)
 
         np_brick = NodePath('brick')
         np_stone = NodePath('stone')
@@ -122,18 +121,18 @@ class MazeBuilder:
                     self.make_block(f'brick_{r}_{c}', Point3(xy, brick_z), self.wall_size, mask, hide, np_brick)
                     self.make_block(f'top_{r}_{c}', Point3(xy, stone_z), stone_size, mask, hide, np_stone)
 
-        su = (self.wall_size.x * 2 + self.wall_size.y * 2) / 4
-        sv = self.wall_size.z / 4
+        su = (self.wall_size.x + self.wall_size.y) / 3
+        sv = self.wall_size.z / 2
         np_brick.set_tex_scale(TextureStage.get_default(), su, sv)
 
         np_brick.set_texture(tex_brick)
         np_stone.set_texture(tex_stone)
 
-    def make_block(self, name, pos, scale, mask, hide=False, parent=None):
+    def make_block(self, name, pos, size, mask, hide=False, parent=None):
         if parent is None:
             parent = self.np_walls.find('closure')
 
-        block = Block(name, pos, scale, mask)
+        block = Block(name, pos, size, mask)
         block.reparent_to(parent)
         self.world.attach(block.node())
 

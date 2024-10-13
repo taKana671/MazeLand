@@ -9,7 +9,7 @@ from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
 from panda3d.core import GeomNode, GeomVertexFormat
 
-from create_geomnode import Cylinder
+from shapes.src import Cylinder
 from create_maze3d import MazeBuilder
 from lights import BasicAmbientLight, BasicDayLight
 
@@ -123,7 +123,9 @@ class Poles(NodePath):
         self.right = self.assemble(Point3(half, 0, 0), pole_h)
 
     def assemble(self, pos, pole_h):
-        cylinder = Cylinder(radius=0.15, height=pole_h, segs_a=12)
+        cylinder = Cylinder(
+            radius=0.15, height=pole_h, segs_a=12).create()
+
         cylinder.set_pos(pos)
         cylinder.reparent_to(self)
         shape = BulletConvexHullShape()
