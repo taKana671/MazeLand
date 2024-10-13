@@ -6,7 +6,7 @@ from panda3d.core import NodePath
 from panda3d.core import TransformState, Vec3, BitMask32, Point3, LColor, Vec2
 from direct.interval.IntervalGlobal import Sequence, Func
 
-from create_geomnode import SphericalShape, RightTriangularPrism
+from shapes.src import Sphere, Cone
 from utils import create_line_node
 from basic_character import Status, Direction, Sensor
 from create_maze3d import Corners
@@ -25,8 +25,8 @@ class AirFrame(NodePath):
         self.create_wings()
 
     def create_body(self, body_color):
-        body = SphericalShape(radius=0.5)
-        body.set_scale(Vec3(1))  # if oval, set Vec3(1, 1.5, 1).
+        body = Sphere(radius=0.5).create()
+        # body.set_scale(Vec3(1))  # if oval, set Vec3(1, 1.5, 1).
         body.set_color(body_color)
         body.reparent_to(self)
 
@@ -35,9 +35,9 @@ class AirFrame(NodePath):
         self.node().add_shape(shape, TransformState.make_pos(Point3(0, 0, 0)))
 
     def create_wings(self):
-        wing = RightTriangularPrism(h=0.2)
-        pos = Vec3(0, -0.3, 0)
-        hpr = Vec3(-135, 0, 0)
+        wing = Cone(height=0.2, segs_c=3, bottom_radius=0.7).create()
+        pos = Vec3(0, -0.1, 0)
+        hpr = Vec3(-150, 0, 0)
         wing.set_pos_hpr(pos, hpr)  # if oval: set pos to Vec3(0, -0.5, 0).
         wing.set_color(LColor(.5, .5, .5, 1))
         wing.reparent_to(self)

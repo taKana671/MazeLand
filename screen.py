@@ -3,7 +3,7 @@ from direct.gui.DirectFrame import DirectFrame
 from direct.gui.DirectLabel import DirectLabel
 from direct.gui.DirectButton import DirectButton
 from panda3d.core import CardMaker, LColor
-from direct.interval.IntervalGlobal import Sequence, Func
+from direct.interval.IntervalGlobal import Sequence, Func, Wait
 
 
 class Frame(DirectFrame):
@@ -105,13 +105,13 @@ class Screen:
     def fade_out(self, callback, *args, **kwargs):
         Sequence(
             Func(self.frame.display, False),
-            self.background.colorInterval(1.0, self.color_out),
             Func(self.background.detach_node),
             Func(callback, *args, **kwargs)
         ).start()
 
     def fade_in(self, callback, *args, **kwargs):
         Sequence(
+            Wait(1),
             Func(self.background.reparent_to, base.render2d),
             self.background.colorInterval(1.0, self.color_in),
             Func(self.frame.display, True),
