@@ -8,11 +8,11 @@ from panda3d.core import Vec3, Point3, BitMask32, Point2
 from shapes.src import Box
 
 try:
-    from create_maze2d_cy import WallExtendingAlgorithm
+    from maze.cymaze.create_maze2d import WallExtendingAlgorithm
     print('Use cython code.')
 except ImportError:
     print('Use python_code.')
-    from create_maze2d import WallExtendingAlgorithm
+    from maze.pymaze.create_maze2d import WallExtendingAlgorithm
 
 
 class Corners(Enum):
