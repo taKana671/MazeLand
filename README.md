@@ -1,23 +1,66 @@
 # MazeLand
-Find the exit and escape the maze!　Airplanes move automatically. Control a snowman to escape the maze faster than them.　The snowman can jump to see the maze from above or to avoid collision with them.
+Find the exit and escape the maze!　Airplanes move automatically. Control a snowman to escape the maze faster than them.  
+The snowman can jump to see the maze from above or to avoid collision with them.
 
 https://github.com/taKana671/MazeLand/assets/48859041/03b340ad-e070-4811-8095-f65566374e2f
 
 I have wanted to try split screen. For this reason, I made this game. But what was harder than such a screen was to make camera follow the snowman in the narrow passages of the maze. I tried many different ways, but camera went into the 3D objects such as walls and the inside of the objects was displayed on the screen. Finally, it took so many days to find that it was ok just to set the variable 'near_distance' of set_near_far method to less than 1. 
 
 # Requirements
-* Panda3D 1.10.13
-* Cython 0.29.37
-* numpy 1.23.5
+* Panda3D 1.10.15
+* Cython 3.0.12
+* numpy 2.2.4
   
 # Environment
-* Python 3.11
+* Python 3.12
 * Windows 11
 
 # Usage
-* Execute a command below on your command line.
+
+#### Clone this repository with submodule.
 ```
->>>python maze_land.py
+git clone --recursive https://github.com/taKana671/MazeLand.git
+```
+
+#### Build cython code.
+To speed up maze algorithm, convert Python code to C code by using Cython.
+To build your Cython file, use the command below, which will generate a so or pyd file into `maze_algorithm/cymaze`.
+
+<table>
+    <tr>
+      <th colspan="3">python</th>
+      <th colspan="3">cython</th>
+    </tr>
+    <tr>
+      <th>best(s)</th>
+      <th>loops</th>
+      <th>repeat</th>
+      <th>best(s)</th>
+      <th>loops</th>
+      <th>repeat</th>
+    </tr>
+    <tr>
+      <td>0.030437</td>
+      <td>10</td>
+      <td>7</td>
+      <td>0.005342</td>
+      <td>100</td>
+      <td>7</td>
+    </tr>
+</table>   
+
+```
+cd MazeLand
+python setup.py build_ext --inplace
+```
+If the error like `ModuleNotFoundError: No module named ‘distutils’` occurs, install the setuptools.
+```
+pip install setuptools
+```
+
+#### Execute a command below on your command line.
+```
+python main.py
 ```
 
 # Controls:
@@ -28,22 +71,3 @@ I have wanted to try split screen. For this reason, I made this game. But what w
 * Press [down arrow] key to go back.
 * Press [Enter] key to jump.
 * Press [ D ] key to toggle debug ON and OFF.
-
-# Cython code
-To speed up maze algorithm, I used Cython language to convert Python code to C code.
-To build your Cython file, use the command below, which will leave in your local a so file in unix or pyd file in Windows.
-
-```
->>>cd cython_code
->>>python setup.py build_ext --inplace
-```
-
-```
-# python code (maze size is 155 * 155)
-36.4 ms ± 1.14 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
-```
-
-```
-# cython code (maze size is 155 * 155)
-18.2 ms ± 144 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-```
