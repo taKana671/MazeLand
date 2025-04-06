@@ -1,6 +1,5 @@
 # MazeLand
-Find the exit and escape the maze!　Airplanes move automatically. Control a snowman to escape the maze faster than them.  
-The snowman can jump to see the maze from above or to avoid collision with them.
+Find the exit and escape the maze!　Airplanes move automatically. Control a snowman to escape the maze faster than them. The snowman can jump to see the maze from above or to avoid collision with them.
 
 https://github.com/taKana671/MazeLand/assets/48859041/03b340ad-e070-4811-8095-f65566374e2f
 
