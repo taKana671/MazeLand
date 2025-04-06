@@ -10,12 +10,12 @@ from direct.showbase.InputStateGlobal import inputState
 from panda3d.core import load_prc_file_data
 from panda3d.core import Camera
 
-from scene import Scene
-from aircraft import Aircraft
-from maze_walker import MazeWalker
-from basic_character import Direction, Status, BodyColor
-from create_maze3d import Corners
-from screen import Screen, Button, Frame, Label
+from .scene import Scene
+from .aircraft import Aircraft
+from .maze_walker import MazeWalker
+from .basic_character import Direction, Status, BodyColor
+from .maze3D import Corners
+from .screen import Screen, Button, Frame, Label
 
 
 load_prc_file_data("", """
@@ -410,6 +410,6 @@ class MazeLand(ShowBase):
         return task.cont
 
 
-if __name__ == '__main__':
-    app = MazeLand()
-    app.run()
+# if __name__ == '__main__':
+#     app = MazeLand()
+#     app.run()
