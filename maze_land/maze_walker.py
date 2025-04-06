@@ -8,7 +8,7 @@ from panda3d.core import NodePath, TransformState
 from panda3d.core import Vec2, Vec3, Point3, BitMask32
 from direct.interval.IntervalGlobal import ProjectileInterval, Parallel
 
-from basic_character import Sensor, Direction, Status
+from .basic_character import Sensor, Direction, Status
 
 
 class Character(NodePath):

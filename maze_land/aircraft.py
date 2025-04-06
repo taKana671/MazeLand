@@ -7,9 +7,9 @@ from panda3d.core import TransformState, Vec3, BitMask32, Point3, LColor, Vec2
 from direct.interval.IntervalGlobal import Sequence, Func
 
 from shapes.src import Sphere, Cone
-from utils import create_line_node
-from basic_character import Status, Direction, Sensor
-from create_maze3d import Corners
+from .utils import create_line_node
+from .basic_character import Status, Direction, Sensor
+from .maze3D import Corners
 
 
 class AirFrame(NodePath):
