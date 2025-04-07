@@ -120,8 +120,6 @@ cdef class WallExtendingAlgorithm:
                 grid[y, x] = EXTENDING
 
             elif grid[y, x] == WALL:
-                #for j in range(self.rows):
-                #    for i in range(self.cols):
                 for j in range(min_y, max_y + 1):
                     for i in range(min_x, max_x + 1):
                         if grid[j, i] == EXTENDING:
@@ -131,8 +129,6 @@ cdef class WallExtendingAlgorithm:
             cnt = self.extendable_directions(grid, &directions, &extendables, &x, &y)
 
             if cnt == 0:
-                #for j in range(self.rows):
-                #    for i in range(self.cols):
                 for j in range(min_y, max_y + 1):
                     for i in range(min_x, max_x + 1):
                         if grid[j, i] == EXTENDING:
