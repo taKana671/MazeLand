@@ -9,7 +9,7 @@ from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
 from panda3d.core import GeomNode, GeomVertexFormat
 
-from shapes.src import Cylinder
+from shapes import Cylinder
 from .maze3D import MazeBuilder
 from .lights import BasicAmbientLight, BasicDayLight
 

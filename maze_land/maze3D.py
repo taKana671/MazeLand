@@ -6,7 +6,7 @@ from panda3d.core import NodePath, TextureStage
 from panda3d.core import Vec3, Point3, BitMask32, Point2
 
 from maze_algorithm import WallExtendingAlgorithm
-from shapes.src import Box
+from shapes import Box
 
 
 class Corners(Enum):
